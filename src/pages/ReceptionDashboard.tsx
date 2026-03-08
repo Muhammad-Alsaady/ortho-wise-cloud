@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import { CalendarIcon, Search, Plus, Send, CreditCard } from 'lucide-react';
+import { CalendarIcon, Search, Plus, Send, CreditCard, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AppointmentModal from '@/components/modals/AppointmentModal';
 import PaymentModal from '@/components/modals/PaymentModal';
