@@ -34,6 +34,7 @@ const ReceptionDashboard: React.FC = () => {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [editAppointment, setEditAppointment] = useState<any>(null);
   const [paymentAppointment, setPaymentAppointment] = useState<any>(null);
 
   const fetchAppointments = async () => {
