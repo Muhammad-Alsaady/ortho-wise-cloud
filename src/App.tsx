@@ -18,7 +18,7 @@ import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const AppRoutes = () => {
+const AppRoutes = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { user, role, loading } = useAuth();
 
   if (loading) {
