@@ -41,6 +41,9 @@ const translations: Record<string, Record<Language, string>> = {
   'reception.noAppointments': { en: 'No appointments found', ar: 'لا توجد مواعيد' },
   'reception.sendToDoctor': { en: 'Send to Doctor', ar: 'إرسال للطبيب' },
   'reception.payment': { en: 'Payment', ar: 'الدفع' },
+  'reception.existingPatientFound': { en: 'Existing patient found', ar: 'تم العثور على مريض مسجل' },
+  'reception.newPatient': { en: 'New patient — enter details', ar: 'مريض جديد — أدخل البيانات' },
+  'reception.lastVisit': { en: 'Last visit', ar: 'آخر زيارة' },
 
   // Patients
   'patients.title': { en: 'Patient Management', ar: 'إدارة المرضى' },

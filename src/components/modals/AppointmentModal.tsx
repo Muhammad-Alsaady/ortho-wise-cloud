@@ -5,14 +5,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import { CalendarIcon, Search, UserPlus, X, Check } from 'lucide-react';
+import { CalendarIcon, Check, Phone, UserCheck, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 
 const TIME_SLOTS: string[] = [];
 for (let h = 9; h < 24; h++) {
@@ -25,10 +26,14 @@ interface Props {
   onClose: () => void;
 }
 
-interface PatientResult {
+interface FoundPatient {
   id: string;
   name: string;
   phone: string | null;
+  age: number | null;
+  notes: string | null;
+  lastVisitDate: string | null;
+  balance: number;
 }
 
 const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
@@ -36,21 +41,16 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
   const { t } = useLanguage();
   const { toast } = useToast();
 
-  // Patient search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<PatientResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<PatientResult | null>(null);
+  // Phone lookup
+  const [phone, setPhone] = useState('');
+  const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'not_found'>('idle');
+  const [foundPatient, setFoundPatient] = useState<FoundPatient | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Inline patient creation
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newAge, setNewAge] = useState('');
-  const [creatingPatient, setCreatingPatient] = useState(false);
+  // Manual patient fields (used when not found)
+  const [patientName, setPatientName] = useState('');
+  const [patientAge, setPatientAge] = useState('');
+  const [patientNotes, setPatientNotes] = useState('');
 
   // Appointment fields
   const [doctors, setDoctors] = useState<any[]>([]);
@@ -73,111 +73,127 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
     });
   }, [clinicId]);
 
-  // Debounced patient search
-  const searchPatients = useCallback((query: string) => {
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    if (!query || query.length < 2 || !clinicId) {
-      setSearchResults([]);
-      setShowResults(false);
+  // Phone number lookup with debounce
+  const lookupPatient = useCallback(async (phoneNum: string) => {
+    if (!clinicId) return;
+    const digits = phoneNum.replace(/\D/g, '');
+    if (digits.length < 8) {
+      setLookupStatus('idle');
+      setFoundPatient(null);
       return;
     }
-    setSearching(true);
-    setShowResults(true);
 
-    searchTimeout.current = setTimeout(async () => {
-      const { data } = await supabase
-        .from('patients')
-        .select('id, name, phone')
-        .eq('clinic_id', clinicId)
-        .or(`name.ilike.%${query}%,phone.ilike.%${query}%`)
-        .limit(10);
+    setLookupStatus('searching');
 
-      setSearchResults(data || []);
-      setSearching(false);
-    }, 300);
+    const { data } = await supabase
+      .from('patients')
+      .select('id, name, phone, age, notes')
+      .eq('clinic_id', clinicId)
+      .ilike('phone', `%${digits.slice(-8)}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      // Fetch last visit date and balance
+      let lastVisitDate: string | null = null;
+      let balance = 0;
+
+      const { data: balanceData } = await supabase
+        .from('patient_balances')
+        .select('balance, total_billed, total_paid')
+        .eq('patient_id', data.id)
+        .maybeSingle();
+
+      if (balanceData) {
+        balance = Number(balanceData.balance) || 0;
+      }
+
+      // Last visit via appointments
+      const { data: lastApt } = await supabase
+        .from('appointments')
+        .select('appointment_date')
+        .eq('patient_id', data.id)
+        .order('appointment_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastApt) {
+        lastVisitDate = lastApt.appointment_date;
+      }
+
+      setFoundPatient({
+        id: data.id,
+        name: data.name,
+        phone: data.phone,
+        age: data.age,
+        notes: data.notes,
+        lastVisitDate,
+        balance,
+      });
+      setLookupStatus('found');
+    } else {
+      setFoundPatient(null);
+      setLookupStatus('not_found');
+    }
   }, [clinicId]);
 
   useEffect(() => {
-    searchPatients(searchQuery);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 8) {
+      setLookupStatus('idle');
+      setFoundPatient(null);
+      return;
+    }
+    searchTimeout.current = setTimeout(() => lookupPatient(phone), 400);
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
-  }, [searchQuery, searchPatients]);
-
-  // Close results on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (resultsRef.current && !resultsRef.current.contains(e.target as Node)) {
-        setShowResults(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const handleSelectPatient = (patient: PatientResult) => {
-    setSelectedPatient(patient);
-    setSearchQuery(patient.name);
-    setShowResults(false);
-    setShowCreateForm(false);
-  };
-
-  const handleClearPatient = () => {
-    setSelectedPatient(null);
-    setSearchQuery('');
-    setShowCreateForm(false);
-  };
-
-  const handleCreatePatient = async () => {
-    if (!clinicId || !newName) return;
-    setCreatingPatient(true);
-
-    const { data, error } = await supabase
-      .from('patients')
-      .insert({ name: newName, phone: newPhone || null, age: newAge ? Number(newAge) : null, clinic_id: clinicId })
-      .select('id, name, phone')
-      .single();
-
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else if (data) {
-      handleSelectPatient(data);
-      toast({ title: t('patients.addPatient'), description: newName });
-      setNewName('');
-      setNewPhone('');
-      setNewAge('');
-    }
-    setCreatingPatient(false);
-  };
-
-  const handleShowCreateForm = () => {
-    setShowCreateForm(true);
-    setShowResults(false);
-    // Pre-fill with the search query
-    const q = searchQuery.trim();
-    if (/^\d+$/.test(q)) {
-      setNewPhone(q);
-      setNewName('');
-    } else {
-      setNewName(q);
-      setNewPhone('');
-    }
-  };
+  }, [phone, lookupPatient]);
 
   const handleSave = async () => {
     if (!clinicId || !doctorId || !time) return;
-    if (!selectedPatient && !searchQuery.trim()) return;
     setSaving(true);
 
-    const payload: any = {
+    let patientId = foundPatient?.id || null;
+    const finalName = foundPatient?.name || patientName.trim();
+    const finalPhone = phone.trim();
+
+    if (!finalName) {
+      toast({ title: t('patients.name'), description: 'Required', variant: 'destructive' });
+      setSaving(false);
+      return;
+    }
+
+    // If patient not found, create one
+    if (!patientId && finalName) {
+      const { data: newPatient, error: patientError } = await supabase
+        .from('patients')
+        .insert({
+          name: finalName,
+          phone: finalPhone || null,
+          age: patientAge ? Number(patientAge) : null,
+          notes: patientNotes || null,
+          clinic_id: clinicId,
+        })
+        .select('id')
+        .single();
+
+      if (patientError) {
+        toast({ title: 'Error', description: patientError.message, variant: 'destructive' });
+        setSaving(false);
+        return;
+      }
+      patientId = newPatient.id;
+    }
+
+    const { error } = await supabase.from('appointments').insert({
       clinic_id: clinicId,
       doctor_id: doctorId,
       appointment_date: format(date, 'yyyy-MM-dd'),
       appointment_time: time,
-      patient_id: selectedPatient?.id || null,
-      patient_name: selectedPatient?.name || searchQuery.trim(),
-      patient_phone: selectedPatient?.phone || null,
-    };
-
-    const { error } = await supabase.from('appointments').insert(payload);
+      patient_id: patientId,
+      patient_name: finalName,
+      patient_phone: finalPhone || null,
+    });
 
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -188,7 +204,7 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
     setSaving(false);
   };
 
-  const canSave = !!doctorId && !!time && (!!selectedPatient || !!searchQuery.trim());
+  const canSave = !!doctorId && !!time && (lookupStatus === 'found' || !!patientName.trim());
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
@@ -197,106 +213,83 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
           <DialogTitle>{t('reception.newAppointment')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {/* Patient Search */}
+          {/* Phone Number - Primary Lookup */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">{t('reception.patient')}</label>
-            <div className="relative" ref={resultsRef}>
-              {selectedPatient ? (
-                <div className="flex items-center gap-2 rounded-md border border-input bg-muted/50 px-3 py-2">
-                  <Check className="h-4 w-4 text-green-600 shrink-0" />
-                  <span className="flex-1 text-sm font-medium">{selectedPatient.name}</span>
-                  {selectedPatient.phone && (
-                    <span className="text-xs text-muted-foreground">{selectedPatient.phone}</span>
-                  )}
-                  <button onClick={handleClearPatient} className="text-muted-foreground hover:text-foreground">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder={t('reception.search')}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="ps-10"
-                    autoFocus
-                  />
-                </>
-              )}
-
-              {/* Search Results Dropdown */}
-              {showResults && !selectedPatient && (
-                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg max-h-60 overflow-auto">
-                  {searching ? (
-                    <div className="p-3 space-y-2">
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-8 w-full" />
-                    </div>
-                  ) : searchResults.length > 0 ? (
-                    <>
-                      {searchResults.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => handleSelectPatient(p)}
-                          className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-accent transition-colors text-start"
-                        >
-                          <span className="font-medium">{p.name}</span>
-                          {p.phone && <span className="text-xs text-muted-foreground">{p.phone}</span>}
-                        </button>
-                      ))}
-                      <div className="border-t">
-                        <button
-                          onClick={handleShowCreateForm}
-                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-primary hover:bg-accent transition-colors"
-                        >
-                          <UserPlus className="h-4 w-4" />
-                          {t('patients.addPatient')}
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-3">
-                      <p className="text-sm text-muted-foreground mb-2">{t('reception.noAppointments')}</p>
-                      <Button size="sm" variant="outline" onClick={handleShowCreateForm} className="w-full">
-                        <UserPlus className="h-4 w-4 me-2" />
-                        {t('patients.addPatient')}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <label className="text-sm font-medium flex items-center gap-2">
+              <Phone className="h-4 w-4" />
+              {t('patients.phone')}
+            </label>
+            <Input
+              placeholder="e.g. 05xxxxxxxx"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              autoFocus
+              className="text-base"
+            />
+            {lookupStatus === 'searching' && (
+              <p className="text-xs text-muted-foreground animate-pulse">{t('common.loading')}...</p>
+            )}
           </div>
 
-          {/* Inline Patient Creation Form */}
-          {showCreateForm && !selectedPatient && (
-            <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 p-3 space-y-3">
-              <p className="text-sm font-medium text-primary">{t('patients.addPatient')}</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">{t('patients.name')}</label>
-                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
+          {/* Found Patient Card */}
+          {lookupStatus === 'found' && foundPatient && (
+            <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-semibold text-green-700 dark:text-green-400">
+                  {t('reception.existingPatientFound') || 'Existing patient found'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <div>
+                  <span className="text-muted-foreground">{t('patients.name')}:</span>{' '}
+                  <span className="font-medium">{foundPatient.name}</span>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">{t('patients.phone')}</label>
-                  <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+                <div>
+                  <span className="text-muted-foreground">{t('patients.age')}:</span>{' '}
+                  <span className="font-medium">{foundPatient.age ?? '—'}</span>
                 </div>
+                {foundPatient.lastVisitDate && (
+                  <div>
+                    <span className="text-muted-foreground">{t('reception.lastVisit') || 'Last visit'}:</span>{' '}
+                    <span className="font-medium">{foundPatient.lastVisitDate}</span>
+                  </div>
+                )}
+                <div>
+                  <span className="text-muted-foreground">{t('reception.remaining')}:</span>{' '}
+                  <Badge variant={foundPatient.balance > 0 ? 'destructive' : 'secondary'} className="text-xs">
+                    {foundPatient.balance}
+                  </Badge>
+                </div>
+              </div>
+              {foundPatient.notes && (
+                <p className="text-xs text-muted-foreground border-t pt-1 mt-1">{foundPatient.notes}</p>
+              )}
+            </div>
+          )}
+
+          {/* New Patient Form */}
+          {lookupStatus === 'not_found' && (
+            <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-primary">
+                  {t('reception.newPatient') || 'New patient — enter details'}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">{t('patients.name')} *</label>
+                  <Input value={patientName} onChange={(e) => setPatientName(e.target.value)} />
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">{t('patients.age')}</label>
-                  <Input type="number" value={newAge} onChange={(e) => setNewAge(e.target.value)} />
+                  <Input type="number" value={patientAge} onChange={(e) => setPatientAge(e.target.value)} />
                 </div>
-                <div className="flex items-end gap-2">
-                  <Button size="sm" onClick={handleCreatePatient} disabled={creatingPatient || !newName} className="flex-1">
-                    <Check className="h-3 w-3 me-1" />
-                    {t('common.save')}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowCreateForm(false)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">{t('patients.notes') || 'Notes'}</label>
+                <Textarea value={patientNotes} onChange={(e) => setPatientNotes(e.target.value)} rows={2} />
               </div>
             </div>
           )}
@@ -340,7 +333,10 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
           {/* Actions */}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
-            <Button onClick={handleSave} disabled={saving || !canSave}>{t('common.save')}</Button>
+            <Button onClick={handleSave} disabled={saving || !canSave}>
+              {lookupStatus === 'not_found' && <UserPlus className="h-4 w-4 me-1" />}
+              {t('common.save')}
+            </Button>
           </div>
         </div>
       </DialogContent>
