@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        fetchUserData(currentUser.id).then(() => setLoading(false));
+        fetchUserData(currentUser.id).catch(e => console.error('fetchUserData error:', e)).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
