@@ -22,7 +22,9 @@ export type Database = {
           created_at: string
           doctor_id: string
           id: string
-          patient_id: string
+          patient_id: string | null
+          patient_name: string | null
+          patient_phone: string | null
           status: Database["public"]["Enums"]["appointment_status"]
         }
         Insert: {
@@ -32,7 +34,9 @@ export type Database = {
           created_at?: string
           doctor_id: string
           id?: string
-          patient_id: string
+          patient_id?: string | null
+          patient_name?: string | null
+          patient_phone?: string | null
           status?: Database["public"]["Enums"]["appointment_status"]
         }
         Update: {
@@ -42,7 +46,9 @@ export type Database = {
           created_at?: string
           doctor_id?: string
           id?: string
-          patient_id?: string
+          patient_id?: string | null
+          patient_name?: string | null
+          patient_phone?: string | null
           status?: Database["public"]["Enums"]["appointment_status"]
         }
         Relationships: [
