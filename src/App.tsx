@@ -1,3 +1,4 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,7 +19,7 @@ import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const AppRoutes = () => {
+const AppRoutes = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { user, role, loading } = useAuth();
 
   if (loading) {
@@ -59,7 +60,9 @@ const AppRoutes = () => {
       </LicenseGuard>
     </Layout>
   );
-};
+});
+
+AppRoutes.displayName = 'AppRoutes';
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
