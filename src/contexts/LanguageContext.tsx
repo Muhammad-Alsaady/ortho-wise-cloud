@@ -108,6 +108,9 @@ const translations: Record<string, Record<Language, string>> = {
   'common.loading': { en: 'Loading...', ar: 'جاري التحميل...' },
   'common.noData': { en: 'No data', ar: 'لا توجد بيانات' },
   'common.select': { en: 'Select', ar: 'اختر' },
+  'common.required': { en: 'is required', ar: 'مطلوب' },
+  'reception.patientInfo': { en: 'Patient Info', ar: 'معلومات المريض' },
+  'reception.appointmentInfo': { en: 'Appointment Info', ar: 'معلومات الموعد' },
 
   // Statuses
   'status.Booked': { en: 'Booked', ar: 'محجوز' },
