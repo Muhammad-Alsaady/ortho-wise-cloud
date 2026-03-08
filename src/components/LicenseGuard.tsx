@@ -23,8 +23,8 @@ const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
       supabase.from('clinics').select('*').eq('id', clinicId).single().then(({ data }) => {
         setClinic(data);
         setLoading(false);
-      }).catch(() => setLoading(false));
-    });
+      });
+    }).catch(() => setLoading(false));
   }, [clinicId]);
 
   if (loading) return null;
