@@ -19,7 +19,7 @@ import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const AppRoutes = React.forwardRef<HTMLDivElement>((_, ref) => {
+const AppRoutes = () => {
   const { user, role, loading } = useAuth();
 
   if (loading) {
@@ -60,11 +60,9 @@ const AppRoutes = React.forwardRef<HTMLDivElement>((_, ref) => {
       </LicenseGuard>
     </Layout>
   );
-});
+};
 
-AppRoutes.displayName = 'AppRoutes';
-
-const App = React.forwardRef<HTMLDivElement>((_, ref) => (
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <AuthProvider>
@@ -78,8 +76,6 @@ const App = React.forwardRef<HTMLDivElement>((_, ref) => (
       </AuthProvider>
     </LanguageProvider>
   </QueryClientProvider>
-));
-
-App.displayName = 'App';
+);
 
 export default App;
