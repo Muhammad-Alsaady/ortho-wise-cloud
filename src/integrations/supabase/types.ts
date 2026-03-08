@@ -126,6 +126,7 @@ export type Database = {
           license_key: string | null
           name: string
           phone: string | null
+          plan_type: string | null
         }
         Insert: {
           address?: string | null
@@ -135,6 +136,7 @@ export type Database = {
           license_key?: string | null
           name: string
           phone?: string | null
+          plan_type?: string | null
         }
         Update: {
           address?: string | null
@@ -144,6 +146,7 @@ export type Database = {
           license_key?: string | null
           name?: string
           phone?: string | null
+          plan_type?: string | null
         }
         Relationships: []
       }
@@ -314,6 +317,13 @@ export type Database = {
             foreignKeyName: "treatment_plans_treatment_id_fkey"
             columns: ["treatment_id"]
             isOneToOne: false
+            referencedRelation: "treatment_popularity"
+            referencedColumns: ["treatment_id"]
+          },
+          {
+            foreignKeyName: "treatment_plans_treatment_id_fkey"
+            columns: ["treatment_id"]
+            isOneToOne: false
             referencedRelation: "treatments"
             referencedColumns: ["id"]
           },
@@ -474,6 +484,23 @@ export type Database = {
           },
         ]
       }
+      monthly_revenue: {
+        Row: {
+          clinic_id: string | null
+          payment_count: number | null
+          revenue_month: string | null
+          total_revenue: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_balances: {
         Row: {
           balance: number | null
@@ -487,6 +514,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "patients_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      treatment_popularity: {
+        Row: {
+          clinic_id: string | null
+          total_revenue: number | null
+          treatment_id: string | null
+          treatment_name: string | null
+          usage_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_clinic_id_fkey"
             columns: ["clinic_id"]
             isOneToOne: false
             referencedRelation: "clinics"
