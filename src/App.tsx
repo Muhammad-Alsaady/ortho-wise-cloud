@@ -60,7 +60,9 @@ const AppRoutes = React.forwardRef<HTMLDivElement>((_, ref) => {
       </LicenseGuard>
     </Layout>
   );
-};
+});
+
+AppRoutes.displayName = 'AppRoutes';
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
