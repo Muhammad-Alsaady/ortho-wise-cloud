@@ -232,6 +232,14 @@ const ReceptionDashboard: React.FC = () => {
         />
       )}
 
+      {editAppointment && (
+        <EditAppointmentModal
+          open={!!editAppointment}
+          appointment={editAppointment}
+          onClose={() => { setEditAppointment(null); fetchAppointments(); }}
+        />
+      )}
+
       {paymentAppointment && (
         <PaymentModal
           open={!!paymentAppointment}
