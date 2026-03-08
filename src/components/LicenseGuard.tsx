@@ -15,13 +15,16 @@ const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (!clinicId) return;
+    if (!clinicId) {
+      setLoading(false);
+      return;
+    }
     import('@/integrations/supabase/client').then(({ supabase }) => {
       supabase.from('clinics').select('*').eq('id', clinicId).single().then(({ data }) => {
         setClinic(data);
         setLoading(false);
       });
-    });
+    }).catch(() => setLoading(false));
   }, [clinicId]);
 
   if (loading) return null;
