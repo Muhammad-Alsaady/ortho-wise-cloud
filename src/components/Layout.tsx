@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { 
-  CalendarDays, Users, Stethoscope, Settings, LogOut, Globe, Menu, X
+  CalendarDays, Users, Stethoscope, Settings, LogOut, Globe, Menu, X, BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       items.push({ path: '/doctor-queue', label: t('nav.doctorQueue'), icon: Stethoscope });
     }
     if (role === 'admin' || role === 'superadmin') {
+      items.push({ path: '/reports', label: t('nav.reports'), icon: BarChart3 });
       items.push({ path: '/admin', label: t('nav.admin'), icon: Settings });
     }
     return items;

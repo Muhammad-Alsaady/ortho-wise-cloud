@@ -66,7 +66,16 @@ const DoctorVisit: React.FC = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchVisit(); }, [id, clinicId]);
+  useEffect(() => {
+    fetchVisit();
+    // Realtime: re-fetch when treatment_plans or payments change
+    const channel = supabase
+      .channel(`visit-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'treatment_plans' }, () => fetchVisit())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => fetchVisit())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, clinicId]);
 
   const handleAddTreatment = async () => {
     if (!selectedTreatment || !id) return;
