@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { CalendarIcon, Search, Plus, Send, CreditCard, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AppointmentModal from '@/components/modals/AppointmentModal';
+import EditAppointmentModal from '@/components/modals/EditAppointmentModal';
 import PaymentModal from '@/components/modals/PaymentModal';
 import { useToast } from '@/hooks/use-toast';
 
