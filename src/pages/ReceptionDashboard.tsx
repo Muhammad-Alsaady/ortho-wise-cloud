@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import { CalendarIcon, Search, Plus, Send, CreditCard } from 'lucide-react';
+import { CalendarIcon, Search, Plus, Send, CreditCard, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AppointmentModal from '@/components/modals/AppointmentModal';
+import EditAppointmentModal from '@/components/modals/EditAppointmentModal';
 import PaymentModal from '@/components/modals/PaymentModal';
 import { useToast } from '@/hooks/use-toast';
 
@@ -33,6 +34,7 @@ const ReceptionDashboard: React.FC = () => {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [editAppointment, setEditAppointment] = useState<any>(null);
   const [paymentAppointment, setPaymentAppointment] = useState<any>(null);
 
   const fetchAppointments = async () => {
@@ -204,16 +206,14 @@ const ReceptionDashboard: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      <Button size="sm" variant="outline" onClick={() => setEditAppointment(apt)}>
+                        <Pencil className="h-3 w-3 me-1" />
+                        {t('common.edit')}
+                      </Button>
                       {apt.status === 'Booked' && (
                         <Button size="sm" variant="outline" onClick={() => handleSendToDoctor(apt.id)}>
                           <Send className="h-3 w-3 me-1" />
                           {t('reception.sendToDoctor')}
-                        </Button>
-                      )}
-                      {(apt.status === 'Completed' || apt.status === 'WithDoctor') && (
-                        <Button size="sm" variant="outline" onClick={() => setPaymentAppointment(apt)}>
-                          <CreditCard className="h-3 w-3 me-1" />
-                          {t('reception.payment')}
                         </Button>
                       )}
                     </div>
@@ -229,6 +229,14 @@ const ReceptionDashboard: React.FC = () => {
         <AppointmentModal
           open={showAppointmentModal}
           onClose={() => { setShowAppointmentModal(false); fetchAppointments(); }}
+        />
+      )}
+
+      {editAppointment && (
+        <EditAppointmentModal
+          open={!!editAppointment}
+          appointment={editAppointment}
+          onClose={() => { setEditAppointment(null); fetchAppointments(); }}
         />
       )}
 

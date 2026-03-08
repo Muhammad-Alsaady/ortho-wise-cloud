@@ -142,6 +142,19 @@ const translations: Record<string, Record<Language, string>> = {
   'admin.backup': { en: 'Backup', ar: 'النسخ الاحتياطي' },
   'admin.downloadBackup': { en: 'Download Backup', ar: 'تحميل النسخة الاحتياطية' },
   'admin.backupDesc': { en: 'Download a full backup of your clinic data as JSON.', ar: 'تحميل نسخة احتياطية كاملة من بيانات عيادتك بصيغة JSON.' },
+
+  // Edit Appointment Modal
+  'edit.tabAppointment': { en: 'Appointment', ar: 'الموعد' },
+  'edit.tabTreatments': { en: 'Treatments', ar: 'العلاجات' },
+  'edit.tabPayments': { en: 'Payments', ar: 'المدفوعات' },
+  'edit.tabNextVisit': { en: 'Next Visit', ar: 'الزيارة القادمة' },
+  'edit.noVisitYet': { en: 'No visit started yet for this appointment.', ar: 'لم تبدأ زيارة لهذا الموعد بعد.' },
+  'edit.scheduleNext': { en: 'Schedule Next Visit', ar: 'جدولة الزيارة القادمة' },
+  'edit.nextScheduled': { en: 'Next visit scheduled', ar: 'تم جدولة الزيارة القادمة' },
+  'edit.cash': { en: 'Cash', ar: 'نقدي' },
+  'edit.card': { en: 'Card', ar: 'بطاقة' },
+  'edit.transfer': { en: 'Transfer', ar: 'تحويل' },
+  'edit.paymentNotes': { en: 'Payment notes', ar: 'ملاحظات الدفع' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
