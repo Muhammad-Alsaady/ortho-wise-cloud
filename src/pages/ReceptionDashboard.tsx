@@ -206,16 +206,14 @@ const ReceptionDashboard: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      <Button size="sm" variant="outline" onClick={() => setEditAppointment(apt)}>
+                        <Pencil className="h-3 w-3 me-1" />
+                        {t('common.edit')}
+                      </Button>
                       {apt.status === 'Booked' && (
                         <Button size="sm" variant="outline" onClick={() => handleSendToDoctor(apt.id)}>
                           <Send className="h-3 w-3 me-1" />
                           {t('reception.sendToDoctor')}
-                        </Button>
-                      )}
-                      {(apt.status === 'Completed' || apt.status === 'WithDoctor') && (
-                        <Button size="sm" variant="outline" onClick={() => setPaymentAppointment(apt)}>
-                          <CreditCard className="h-3 w-3 me-1" />
-                          {t('reception.payment')}
                         </Button>
                       )}
                     </div>
