@@ -62,7 +62,7 @@ const AppRoutes = () => {
   );
 };
 
-const App = React.forwardRef<HTMLDivElement>((_, ref) => (
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <AuthProvider>
@@ -76,8 +76,6 @@ const App = React.forwardRef<HTMLDivElement>((_, ref) => (
       </AuthProvider>
     </LanguageProvider>
   </QueryClientProvider>
-));
-
-App.displayName = 'App';
+);
 
 export default App;
