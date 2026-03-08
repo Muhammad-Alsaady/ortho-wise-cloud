@@ -24,6 +24,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       items.push({ path: '/doctor-queue', label: t('nav.doctorQueue'), icon: Stethoscope });
     }
     if (role === 'admin' || role === 'superadmin') {
+      items.push({ path: '/reports', label: t('nav.reports'), icon: BarChart3 });
       items.push({ path: '/admin', label: t('nav.admin'), icon: Settings });
     }
     return items;

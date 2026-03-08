@@ -112,6 +112,30 @@ const translations: Record<string, Record<Language, string>> = {
   'status.WithDoctor': { en: 'With Doctor', ar: 'مع الطبيب' },
   'status.Completed': { en: 'Completed', ar: 'مكتمل' },
   'status.Cancelled': { en: 'Cancelled', ar: 'ملغي' },
+
+  // Reports
+  'nav.reports': { en: 'Reports', ar: 'التقارير' },
+  'report.dailyRevenue': { en: 'Daily Revenue', ar: 'الإيرادات اليومية' },
+  'report.monthlyRevenue': { en: 'Monthly Revenue', ar: 'الإيرادات الشهرية' },
+  'report.doctorPerformance': { en: 'Doctor Performance', ar: 'أداء الأطباء' },
+  'report.commonTreatments': { en: 'Popular Treatments', ar: 'العلاجات الأكثر شيوعاً' },
+  'report.outstandingBalances': { en: 'Outstanding Balances', ar: 'الأرصدة المستحقة' },
+  'report.usageCount': { en: 'Usage Count', ar: 'عدد الاستخدامات' },
+  'report.revenue': { en: 'Revenue', ar: 'الإيرادات' },
+
+  // License
+  'license.expired': { en: 'License Expired', ar: 'انتهت صلاحية الترخيص' },
+  'license.expiredDesc': { en: 'Your clinic license has expired. Please contact support to renew.', ar: 'انتهت صلاحية ترخيص عيادتك. يرجى التواصل مع الدعم للتجديد.' },
+  'license.expiringSoon': { en: 'License Expiring Soon', ar: 'الترخيص على وشك الانتهاء' },
+  'license.expiringSoonDesc': { en: 'Your license will expire on', ar: 'سينتهي ترخيصك في' },
+
+  // Admin extras
+  'admin.auditLogs': { en: 'Audit Logs', ar: 'سجل العمليات' },
+  'admin.action': { en: 'Action', ar: 'الإجراء' },
+  'admin.entityType': { en: 'Entity', ar: 'الكيان' },
+  'admin.backup': { en: 'Backup', ar: 'النسخ الاحتياطي' },
+  'admin.downloadBackup': { en: 'Download Backup', ar: 'تحميل النسخة الاحتياطية' },
+  'admin.backupDesc': { en: 'Download a full backup of your clinic data as JSON.', ar: 'تحميل نسخة احتياطية كاملة من بيانات عيادتك بصيغة JSON.' },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
