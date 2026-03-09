@@ -47,27 +47,30 @@ const SuperAdmin: React.FC = () => {
   const [userModal, setUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
 
-  const fetchClinics = useCallback(async () => {
+  const fetchClinics = async () => {
     try {
       const data = await invokeManageUser({ action: 'list_clinics' });
       setClinics(data);
     } catch (err: any) {
+      console.error('fetchClinics error:', err);
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
-  }, [toast]);
+  };
 
-  const fetchUsers = useCallback(async (clinicId?: string) => {
+  const fetchUsers = async (filterClinicId?: string) => {
     try {
-      const data = await invokeManageUser({ action: 'list_users', clinic_id: clinicId || undefined });
+      const data = await invokeManageUser({ action: 'list_users', clinic_id: filterClinicId || undefined });
       setUsers(data);
     } catch (err: any) {
+      console.error('fetchUsers error:', err);
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
-  }, [toast]);
+  };
 
   useEffect(() => {
     Promise.all([fetchClinics(), fetchUsers()]).finally(() => setLoading(false));
-  }, [fetchClinics, fetchUsers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSaveClinic = async () => {
     try {
