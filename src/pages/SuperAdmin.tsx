@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Building2, Users, Edit } from 'lucide-react';
+import { Plus, Building2, Users, Edit, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const invokeManageUser = async (body: Record<string, any>) => {
@@ -43,9 +43,9 @@ const SuperAdmin: React.FC = () => {
   const [editingClinic, setEditingClinic] = useState<any>(null);
   const [clinicForm, setClinicForm] = useState({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
 
-  // User modal
+  // User modal (admin users only from superadmin)
   const [userModal, setUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', clinic_id: '', role: 'reception' as string });
+  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
 
   const fetchClinics = useCallback(async () => {
     try {
@@ -73,10 +73,11 @@ const SuperAdmin: React.FC = () => {
     try {
       if (editingClinic) {
         await invokeManageUser({ action: 'update_clinic', id: editingClinic.id, ...clinicForm });
+        toast({ title: 'Clinic updated' });
       } else {
         await invokeManageUser({ action: 'create_clinic', ...clinicForm });
+        toast({ title: 'Clinic created' });
       }
-      toast({ title: editingClinic ? 'Clinic updated' : 'Clinic created' });
       setClinicModal(false);
       setEditingClinic(null);
       setClinicForm({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
@@ -86,16 +87,16 @@ const SuperAdmin: React.FC = () => {
     }
   };
 
-  const handleCreateUser = async () => {
+  const handleCreateAdmin = async () => {
     try {
       if (!userForm.email || !userForm.password || !userForm.name || !userForm.clinic_id) {
         toast({ title: 'Error', description: 'All fields are required', variant: 'destructive' });
         return;
       }
-      await invokeManageUser({ action: 'create_user', ...userForm });
-      toast({ title: 'User created successfully' });
+      await invokeManageUser({ action: 'create_user', ...userForm, role: 'admin' });
+      toast({ title: 'Admin user created successfully' });
       setUserModal(false);
-      setUserForm({ email: '', password: '', name: '', clinic_id: '', role: 'reception' });
+      setUserForm({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
       fetchUsers(selectedClinicId || undefined);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -114,14 +115,19 @@ const SuperAdmin: React.FC = () => {
     setClinicModal(true);
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: 'Copied to clipboard' });
+  };
+
   const filteredUsers = selectedClinicId ? users.filter(u => u.clinic_id === selectedClinicId) : users;
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
-      case 'superadmin': return 'destructive';
-      case 'admin': return 'default';
-      case 'doctor': return 'secondary';
-      default: return 'outline';
+      case 'superadmin': return 'destructive' as const;
+      case 'admin': return 'default' as const;
+      case 'doctor': return 'secondary' as const;
+      default: return 'outline' as const;
     }
   };
 
@@ -143,14 +149,14 @@ const SuperAdmin: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger value="users">
             <Users className="me-2 h-4 w-4" />
-            Users
+            Admin Users
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="clinics" className="mt-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>Clinics</CardTitle>
+              <CardTitle>Clinics (Tenants)</CardTitle>
               <Button onClick={() => { setEditingClinic(null); setClinicForm({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' }); setClinicModal(true); }}>
                 <Plus className="me-2 h-4 w-4" />Add Clinic
               </Button>
@@ -159,6 +165,7 @@ const SuperAdmin: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Tenant ID</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Plan</TableHead>
@@ -169,6 +176,14 @@ const SuperAdmin: React.FC = () => {
                 <TableBody>
                   {clinics.map(c => (
                     <TableRow key={c.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{c.id.slice(0, 8)}…</code>
+                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copyToClipboard(c.id)}>
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell>{c.phone || '—'}</TableCell>
                       <TableCell><Badge variant="outline">{c.plan_type || 'basic'}</Badge></TableCell>
@@ -181,7 +196,7 @@ const SuperAdmin: React.FC = () => {
                     </TableRow>
                   ))}
                   {clinics.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No clinics yet</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No clinics yet</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -192,9 +207,9 @@ const SuperAdmin: React.FC = () => {
         <TabsContent value="users" className="mt-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-4">
-              <CardTitle>Users</CardTitle>
+              <CardTitle>Clinic Admin Users</CardTitle>
               <div className="flex items-center gap-2">
-                <Select value={selectedClinicId} onValueChange={(v) => { setSelectedClinicId(v === 'all' ? '' : v); }}>
+                <Select value={selectedClinicId} onValueChange={(v) => setSelectedClinicId(v === 'all' ? '' : v)}>
                   <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="All clinics" />
                   </SelectTrigger>
@@ -203,8 +218,8 @@ const SuperAdmin: React.FC = () => {
                     {clinics.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button onClick={() => { setUserForm({ email: '', password: '', name: '', clinic_id: selectedClinicId || '', role: 'reception' }); setUserModal(true); }}>
-                  <Plus className="me-2 h-4 w-4" />Add User
+                <Button onClick={() => { setUserForm({ email: '', password: '', name: '', clinic_id: selectedClinicId || '', role: 'admin' }); setUserModal(true); }}>
+                  <Plus className="me-2 h-4 w-4" />Add Admin
                 </Button>
               </div>
             </CardHeader>
@@ -216,27 +231,31 @@ const SuperAdmin: React.FC = () => {
                     <TableHead>{t('auth.email')}</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Clinic</TableHead>
+                    <TableHead>Tenant ID</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredUsers.map(u => {
-                    const roles = Array.isArray(u.user_roles) ? u.user_roles : [];
+                    const userRoles = Array.isArray(u.user_roles) ? u.user_roles : [];
                     const clinicName = clinics.find(c => c.id === u.clinic_id)?.name || '—';
                     return (
                       <TableRow key={u.id}>
                         <TableCell className="font-medium">{u.name}</TableCell>
                         <TableCell>{u.email}</TableCell>
                         <TableCell>
-                          {roles.map((r: any, i: number) => (
+                          {userRoles.map((r: any, i: number) => (
                             <Badge key={i} variant={getRoleBadgeVariant(r.role)} className="me-1">{r.role}</Badge>
                           ))}
                         </TableCell>
                         <TableCell>{clinicName}</TableCell>
+                        <TableCell>
+                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{u.clinic_id?.slice(0, 8)}…</code>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
                   {filteredUsers.length === 0 && (
-                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No users found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No users found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -252,6 +271,17 @@ const SuperAdmin: React.FC = () => {
             <DialogTitle>{editingClinic ? 'Edit Clinic' : 'Add Clinic'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {editingClinic && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tenant ID</label>
+                <div className="flex items-center gap-2">
+                  <Input value={editingClinic.id} readOnly className="font-mono text-xs bg-muted" />
+                  <Button size="icon" variant="outline" onClick={() => copyToClipboard(editingClinic.id)}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium">Clinic Name *</label>
               <Input value={clinicForm.name} onChange={e => setClinicForm(f => ({ ...f, name: e.target.value }))} />
@@ -289,11 +319,11 @@ const SuperAdmin: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* User Modal */}
+      {/* Admin User Modal */}
       <Dialog open={userModal} onOpenChange={setUserModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create User</DialogTitle>
+            <DialogTitle>Create Clinic Admin</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -308,31 +338,22 @@ const SuperAdmin: React.FC = () => {
               <label className="text-sm font-medium">{t('auth.password')} *</label>
               <Input type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Clinic *</label>
-                <Select value={userForm.clinic_id} onValueChange={v => setUserForm(f => ({ ...f, clinic_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select clinic" /></SelectTrigger>
-                  <SelectContent>
-                    {clinics.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Role *</label>
-                <Select value={userForm.role} onValueChange={v => setUserForm(f => ({ ...f, role: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="doctor">Doctor</SelectItem>
-                    <SelectItem value="reception">Reception</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Clinic *</label>
+              <Select value={userForm.clinic_id} onValueChange={v => setUserForm(f => ({ ...f, clinic_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select clinic" /></SelectTrigger>
+                <SelectContent>
+                  {clinics.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} <span className="text-muted-foreground ms-2 text-xs">({c.id.slice(0, 8)}…)</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleCreateUser}>Create User</Button>
+              <Button onClick={handleCreateAdmin}>Create Admin</Button>
             </div>
           </div>
         </DialogContent>
