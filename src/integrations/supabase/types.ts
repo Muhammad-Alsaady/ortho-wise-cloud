@@ -425,6 +425,13 @@ export type Database = {
             foreignKeyName: "visits_appointment_id_fkey"
             columns: ["appointment_id"]
             isOneToOne: false
+            referencedRelation: "appointment_summary"
+            referencedColumns: ["appointment_id"]
+          },
+          {
+            foreignKeyName: "visits_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
@@ -446,6 +453,24 @@ export type Database = {
       }
     }
     Views: {
+      appointment_summary: {
+        Row: {
+          appointment_id: string | null
+          clinic_id: string | null
+          total_billed: number | null
+          total_paid: number | null
+          treatment_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_revenue: {
         Row: {
           clinic_id: string | null
