@@ -43,6 +43,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let initialLoadDone = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
@@ -52,20 +54,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole(null);
       }
-      setLoading(false);
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        fetchUserData(currentUser.id).catch(e => console.error('fetchUserData error:', e)).finally(() => setLoading(false));
-      } else {
+      if (!initialLoadDone) {
+        initialLoadDone = true;
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Safety timeout in case onAuthStateChange never fires
+    const timeout = setTimeout(() => {
+      if (!initialLoadDone) {
+        console.warn('Auth loading timeout — forcing loading=false');
+        initialLoadDone = true;
+        setLoading(false);
+      }
+    }, 5000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
