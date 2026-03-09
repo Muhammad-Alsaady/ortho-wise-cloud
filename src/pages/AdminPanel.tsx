@@ -15,6 +15,16 @@ import { Plus, Edit, Download, UserPlus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AuditLogs from '@/components/AuditLogs';
 import { invokeManageUser } from '@/lib/api';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const userSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['doctor', 'reception']),
+});
 
 const AdminPanel: React.FC = () => {
   const { clinicId } = useAuth();
