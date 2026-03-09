@@ -312,22 +312,25 @@ const SuperAdmin: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Create Clinic Admin</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={adminFormMethods.handleSubmit(handleCreateAdmin)} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('patients.name')} *</label>
-              <Input value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} />
+              <Input {...adminFormMethods.register('name')} />
+              {adminFormMethods.formState.errors.name && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.name.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.email')} *</label>
-              <Input type="email" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} />
+              <Input type="email" {...adminFormMethods.register('email')} />
+              {adminFormMethods.formState.errors.email && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.password')} *</label>
-              <Input type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
+              <Input type="password" {...adminFormMethods.register('password')} />
+              {adminFormMethods.formState.errors.password && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.password.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Clinic *</label>
-              <Select value={userForm.clinic_id} onValueChange={v => setUserForm(f => ({ ...f, clinic_id: v }))}>
+              <Select value={adminFormMethods.watch('clinic_id')} onValueChange={v => adminFormMethods.setValue('clinic_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Select clinic" /></SelectTrigger>
                 <SelectContent>
                   {clinics.map(c => (
@@ -337,12 +340,13 @@ const SuperAdmin: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+              {adminFormMethods.formState.errors.clinic_id && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.clinic_id.message}</p>}
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleCreateAdmin}>Create Admin</Button>
+              <Button type="button" variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
+              <Button type="submit">Create Admin</Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
