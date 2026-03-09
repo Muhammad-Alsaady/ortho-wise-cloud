@@ -15,6 +15,7 @@ import DoctorQueue from "@/pages/DoctorQueue";
 import DoctorVisit from "@/pages/DoctorVisit";
 import AdminPanel from "@/pages/AdminPanel";
 import Reports from "@/pages/Reports";
+import SuperAdmin from "@/pages/SuperAdmin";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
