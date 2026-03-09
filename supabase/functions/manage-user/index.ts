@@ -159,6 +159,48 @@ Deno.serve(async (req) => {
       return json(result);
     }
 
+    // ── Delete/deactivate user ───────────────────────────────────
+    if (action === "delete_user") {
+      const { user_id } = payload;
+      if (!user_id) throw new Error("user_id is required");
+
+      // Get target user's profile to check clinic
+      const { data: targetProfile } = await supabase
+        .from("profiles")
+        .select("clinic_id")
+        .eq("user_id", user_id)
+        .single();
+
+      if (!targetProfile) throw new Error("User not found");
+
+      // Admin can only delete users in their own clinic
+      if (isAdmin && !isSuperadmin) {
+        if (targetProfile.clinic_id !== callerClinicId) {
+          throw new Error("Cannot delete users from another clinic");
+        }
+        // Check target is not admin/superadmin
+        const { data: targetRoles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user_id);
+        const targetRoleNames = (targetRoles || []).map((r: any) => r.role);
+        if (targetRoleNames.includes("admin") || targetRoleNames.includes("superadmin")) {
+          throw new Error("Cannot delete admin users");
+        }
+      }
+
+      // Cannot delete yourself
+      if (user_id === caller.id) {
+        throw new Error("Cannot delete your own account");
+      }
+
+      // Delete from auth (cascades to profiles and user_roles via FK)
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
+      if (deleteError) throw deleteError;
+
+      return json({ success: true });
+    }
+
     throw new Error(`Unknown action: ${action}`);
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
