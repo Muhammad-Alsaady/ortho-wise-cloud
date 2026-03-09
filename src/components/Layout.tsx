@@ -27,6 +27,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       items.push({ path: '/reports', label: t('nav.reports'), icon: BarChart3 });
       items.push({ path: '/admin', label: t('nav.admin'), icon: Settings });
     }
+    if (role === 'superadmin') {
+      items.push({ path: '/superadmin', label: t('nav.superadmin'), icon: Shield });
+    }
     return items;
   }, [role, t]);
 

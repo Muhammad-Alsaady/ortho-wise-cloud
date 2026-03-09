@@ -56,6 +56,9 @@ const AppRoutes = () => {
               <Route path="/admin" element={<AdminPanel />} />
             </>
           )}
+          {role === 'superadmin' && (
+            <Route path="/superadmin" element={<SuperAdmin />} />
+          )}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </LicenseGuard>
