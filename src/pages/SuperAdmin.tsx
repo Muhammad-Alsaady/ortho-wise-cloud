@@ -205,7 +205,7 @@ const SuperAdmin: React.FC = () => {
                     {clinics.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button onClick={() => { setUserForm({ email: '', password: '', name: '', clinic_id: selectedClinicId || '', role: 'admin' }); setUserModal(true); }}>
+                <Button onClick={() => { adminFormMethods.reset({ name: '', email: '', password: '', clinic_id: selectedClinicId || '' }); setUserModal(true); }}>
                   <Plus className="me-2 h-4 w-4" />Add Admin
                 </Button>
               </div>
