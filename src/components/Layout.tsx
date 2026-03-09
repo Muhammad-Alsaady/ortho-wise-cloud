@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { 
-  CalendarDays, Users, Stethoscope, Settings, LogOut, Globe, Menu, X, BarChart3
+  CalendarDays, Users, Stethoscope, Settings, LogOut, Globe, Menu, X, BarChart3, Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
