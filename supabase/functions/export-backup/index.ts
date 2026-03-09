@@ -34,6 +34,16 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
     }
 
+    // Check role - only admins and superadmins can export
+    const { data: roles } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id);
+    const roleNames = (roles || []).map((r: { role: string }) => r.role);
+    if (!roleNames.includes('admin') && !roleNames.includes('superadmin')) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders });
+    }
+
     // Get user's clinic
     const { data: profile } = await supabaseAdmin.from('profiles').select('clinic_id').eq('user_id', user.id).single();
     if (!profile) {
