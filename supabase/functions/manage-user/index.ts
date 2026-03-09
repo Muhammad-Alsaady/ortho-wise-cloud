@@ -133,18 +133,30 @@ Deno.serve(async (req) => {
     // ── List users (superadmin sees all, admin sees own clinic) ──
     if (action === "list_users") {
       const { clinic_id } = payload;
-      const query = supabase.from("profiles").select("*, user_roles(role)").order("name");
+      const query = supabase.from("profiles").select("*").order("name");
 
       if (isAdmin && !isSuperadmin) {
-        // Admin can only see their own clinic users
         query.eq("clinic_id", callerClinicId);
       } else if (clinic_id) {
         query.eq("clinic_id", clinic_id);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return json(data);
+      const { data: profilesData, error: profilesError } = await query;
+      if (profilesError) throw profilesError;
+
+      // Fetch roles for all users
+      const userIds = (profilesData || []).map((p: any) => p.user_id);
+      const { data: rolesData } = userIds.length > 0
+        ? await supabase.from("user_roles").select("user_id, role").in("user_id", userIds)
+        : { data: [] };
+
+      // Merge roles into profiles
+      const result = (profilesData || []).map((p: any) => ({
+        ...p,
+        user_roles: (rolesData || []).filter((r: any) => r.user_id === p.user_id),
+      }));
+
+      return json(result);
     }
 
     throw new Error(`Unknown action: ${action}`);
