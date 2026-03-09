@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import Layout from "@/components/Layout";
 import LicenseGuard from "@/components/LicenseGuard";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/pages/Login";
 import ReceptionDashboard from "@/pages/ReceptionDashboard";
 import PatientManagement from "@/pages/PatientManagement";
@@ -16,6 +17,7 @@ import DoctorVisit from "@/pages/DoctorVisit";
 import AdminPanel from "@/pages/AdminPanel";
 import Reports from "@/pages/Reports";
 import SuperAdmin from "@/pages/SuperAdmin";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +61,7 @@ const AppRoutes = () => {
           {role === 'superadmin' && (
             <Route path="/superadmin" element={<SuperAdmin />} />
           )}
+          <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </LicenseGuard>
@@ -74,7 +77,9 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <AppRoutes />
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>
