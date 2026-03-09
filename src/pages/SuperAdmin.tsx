@@ -11,6 +11,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Building2, Users, Edit, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { invokeManageUser } from '@/lib/api';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const adminSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  clinic_id: z.string().uuid('Please select a clinic'),
+});
 
 const SuperAdmin: React.FC = () => {
   const { t } = useLanguage();

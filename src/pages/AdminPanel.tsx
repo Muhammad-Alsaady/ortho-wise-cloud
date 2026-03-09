@@ -357,25 +357,28 @@ const AdminPanel: React.FC = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {userForm.role === 'doctor' ? t('admin.addDoctor') : t('admin.addReceptionist')}
+              {userFormMethods.watch('role') === 'doctor' ? t('admin.addDoctor') : t('admin.addReceptionist')}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={userFormMethods.handleSubmit(handleCreateUser)} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('patients.name')} *</label>
-              <Input value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} />
+              <Input {...userFormMethods.register('name')} />
+              {userFormMethods.formState.errors.name && <p className="text-sm text-destructive">{userFormMethods.formState.errors.name.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.email')} *</label>
-              <Input type="email" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} />
+              <Input type="email" {...userFormMethods.register('email')} />
+              {userFormMethods.formState.errors.email && <p className="text-sm text-destructive">{userFormMethods.formState.errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.password')} *</label>
-              <Input type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
+              <Input type="password" {...userFormMethods.register('password')} />
+              {userFormMethods.formState.errors.password && <p className="text-sm text-destructive">{userFormMethods.formState.errors.password.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Role</label>
-              <Select value={userForm.role} onValueChange={v => setUserForm(f => ({ ...f, role: v }))}>
+              <Select value={userFormMethods.watch('role')} onValueChange={v => userFormMethods.setValue('role', v as 'doctor' | 'reception')}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="doctor">{t('admin.doctors')}</SelectItem>
@@ -384,10 +387,10 @@ const AdminPanel: React.FC = () => {
               </Select>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleCreateUser}>{t('common.save')}</Button>
+              <Button type="button" variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
+              <Button type="submit">{t('common.save')}</Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 
