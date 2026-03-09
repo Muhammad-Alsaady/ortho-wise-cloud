@@ -16,6 +16,7 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.doctorQueue': { en: 'Doctor Queue', ar: 'قائمة الطبيب' },
   'nav.admin': { en: 'Admin Panel', ar: 'لوحة الإدارة' },
   'nav.logout': { en: 'Logout', ar: 'تسجيل الخروج' },
+  'nav.superadmin': { en: 'Super Admin', ar: 'المدير العام' },
 
   // Auth
   'auth.login': { en: 'Sign In', ar: 'تسجيل الدخول' },
