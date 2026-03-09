@@ -31,49 +31,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<UserRole['role'] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   const fetchUserData = async (userId: string) => {
+    // Use maybeSingle() — unlike single(), it does NOT error on 0 rows
     const [profileRes, roleRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('user_id', userId).single(),
-      supabase.from('user_roles').select('role').eq('user_id', userId).single(),
+      supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
     ]);
 
+    if (profileRes.error) console.error('[Auth] Profile fetch error:', profileRes.error);
+    if (roleRes.error) console.error('[Auth] Role fetch error:', roleRes.error);
+
     if (profileRes.data) setProfile(profileRes.data as Profile);
-    if (roleRes.data) setRole(roleRes.data.role);
+    if (roleRes.data) setRole(roleRes.data.role as UserRole['role']);
+
+    setProfileLoaded(true);
   };
 
   useEffect(() => {
-    // Safety net: never stay loading more than 8 seconds
-    const timeout = setTimeout(() => setLoading(false), 8000);
+    // Hard fallback: never stay loading more than 10 seconds
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setProfileLoaded(true);
+    }, 10000);
 
-    // Set up listener BEFORE getSession to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        try { await fetchUserData(currentUser.id); } catch (e) { console.error('fetchUserData error:', e); }
+        try { await fetchUserData(currentUser.id); } catch (e) {
+          console.error('[Auth] fetchUserData threw:', e);
+          setProfileLoaded(true);
+        }
       } else {
         setProfile(null);
         setRole(null);
+        setProfileLoaded(true);
       }
       setLoading(false);
     });
 
-    // Instant initial state on refresh
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         const currentUser = session?.user ?? null;
         setUser(currentUser);
         if (currentUser) {
           fetchUserData(currentUser.id)
-            .catch(e => console.error('fetchUserData error:', e))
+            .catch(e => { console.error('[Auth] fetchUserData threw:', e); setProfileLoaded(true); })
             .finally(() => setLoading(false));
         } else {
+          setProfileLoaded(true);
           setLoading(false);
         }
       })
       .catch(e => {
-        console.error('getSession error:', e);
+        console.error('[Auth] getSession error:', e);
+        setProfileLoaded(true);
         setLoading(false);
       });
 
@@ -84,24 +98,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    setProfileLoaded(false);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   };
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) console.error('signOut error:', error);
+      await supabase.auth.signOut();
     } catch (e) {
-      console.error('signOut exception:', e);
+      console.error('[Auth] signOut error:', e);
     }
     setUser(null);
     setProfile(null);
     setRole(null);
+    setProfileLoaded(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, role, clinicId: profile?.clinic_id ?? null, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, profile, role, clinicId: profile?.clinic_id ?? null, loading: loading || (!!user && !profileLoaded), signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

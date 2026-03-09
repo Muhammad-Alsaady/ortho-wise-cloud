@@ -25,8 +25,8 @@ const queryClient = new QueryClient();
 const AppRoutes = () => {
   const { user, role, loading } = useAuth();
 
-  // Show spinner while: initial load, OR user is logged in but profile/role not yet fetched
-  if (loading || (user && !role)) {
+  // loading is true until both auth AND profile/role are fully resolved
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
