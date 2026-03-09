@@ -126,24 +126,20 @@ const AdminPanel: React.FC = () => {
     setDeleteTreatmentTarget(null);
   };
 
-  const handleCreateUser = async () => {
+  const handleCreateUser = async (values: z.infer<typeof userSchema>) => {
     if (!clinicId) return;
     try {
-      if (!userForm.email || !userForm.password || !userForm.name) {
-        toast({ title: 'Error', description: 'All fields are required', variant: 'destructive' });
-        return;
-      }
       await invokeManageUser({
         action: 'create_user',
-        email: userForm.email,
-        password: userForm.password,
-        name: userForm.name,
+        email: values.email,
+        password: values.password,
+        name: values.name,
         clinic_id: clinicId,
-        role: userForm.role,
+        role: values.role,
       });
-      toast({ title: `${userForm.role === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully` });
+      toast({ title: `${values.role === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully` });
       setUserModal(false);
-      setUserForm({ email: '', password: '', name: '', role: 'doctor' });
+      userFormMethods.reset();
       fetchData();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
