@@ -8,9 +8,28 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Download } from 'lucide-react';
+import { Plus, Edit, Download, UserPlus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import AuditLogs from '@/components/AuditLogs';
+
+const invokeManageUser = async (body: Record<string, any>) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const res = await fetch(`https://${projectId}.supabase.co/functions/v1/manage-user`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+};
 
 const AdminPanel: React.FC = () => {
   const { clinicId } = useAuth();
@@ -23,10 +42,15 @@ const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [backupLoading, setBackupLoading] = useState(false);
 
+  // Treatment modal
   const [treatmentModal, setTreatmentModal] = useState(false);
   const [editingTreatment, setEditingTreatment] = useState<any>(null);
   const [treatmentName, setTreatmentName] = useState('');
   const [treatmentPrice, setTreatmentPrice] = useState('');
+
+  // User modal (for creating doctors/receptionists)
+  const [userModal, setUserModal] = useState(false);
+  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', role: 'doctor' });
 
   const fetchData = async () => {
     if (!clinicId) return;
@@ -85,20 +109,41 @@ const AdminPanel: React.FC = () => {
     setTreatmentModal(true);
   };
 
+  const handleCreateUser = async () => {
+    if (!clinicId) return;
+    try {
+      if (!userForm.email || !userForm.password || !userForm.name) {
+        toast({ title: 'Error', description: 'All fields are required', variant: 'destructive' });
+        return;
+      }
+      await invokeManageUser({
+        action: 'create_user',
+        email: userForm.email,
+        password: userForm.password,
+        name: userForm.name,
+        clinic_id: clinicId,
+        role: userForm.role,
+      });
+      toast({ title: `${userForm.role === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully` });
+      setUserModal(false);
+      setUserForm({ email: '', password: '', name: '', role: 'doctor' });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const handleBackup = async () => {
     setBackupLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
-
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const res = await fetch(
         `https://${projectId}.supabase.co/functions/v1/export-backup`,
         { headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' } }
       );
-
       if (!res.ok) throw new Error('Backup failed');
-
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -115,6 +160,16 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {/* Clinic Tenant ID */}
+      {clinicId && (
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3">
+            <span className="text-sm font-medium text-muted-foreground">Tenant ID:</span>
+            <code className="text-sm bg-muted px-2 py-1 rounded font-mono">{clinicId}</code>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="treatments">
         <TabsList>
           <TabsTrigger value="treatments">{t('admin.treatments')}</TabsTrigger>
@@ -161,11 +216,21 @@ const AdminPanel: React.FC = () => {
 
         <TabsContent value="doctors" className="mt-4">
           <Card>
-            <CardHeader><CardTitle>{t('admin.doctors')}</CardTitle></CardHeader>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle>{t('admin.doctors')}</CardTitle>
+              <Button onClick={() => { setUserForm({ email: '', password: '', name: '', role: 'doctor' }); setUserModal(true); }}>
+                <UserPlus className="me-2 h-4 w-4" />{t('admin.addDoctor')}
+              </Button>
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader><TableRow><TableHead>{t('patients.name')}</TableHead><TableHead>{t('auth.email')}</TableHead></TableRow></TableHeader>
-                <TableBody>{doctors.map(d => <TableRow key={d.id}><TableCell className="font-medium">{d.name}</TableCell><TableCell>{d.email}</TableCell></TableRow>)}</TableBody>
+                <TableBody>
+                  {doctors.map(d => <TableRow key={d.id}><TableCell className="font-medium">{d.name}</TableCell><TableCell>{d.email}</TableCell></TableRow>)}
+                  {doctors.length === 0 && (
+                    <TableRow><TableCell colSpan={2} className="text-center py-8 text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
+                  )}
+                </TableBody>
               </Table>
             </CardContent>
           </Card>
@@ -173,11 +238,21 @@ const AdminPanel: React.FC = () => {
 
         <TabsContent value="receptionists" className="mt-4">
           <Card>
-            <CardHeader><CardTitle>{t('admin.receptionists')}</CardTitle></CardHeader>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle>{t('admin.receptionists')}</CardTitle>
+              <Button onClick={() => { setUserForm({ email: '', password: '', name: '', role: 'reception' }); setUserModal(true); }}>
+                <UserPlus className="me-2 h-4 w-4" />{t('admin.addReceptionist')}
+              </Button>
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader><TableRow><TableHead>{t('patients.name')}</TableHead><TableHead>{t('auth.email')}</TableHead></TableRow></TableHeader>
-                <TableBody>{receptionists.map(r => <TableRow key={r.id}><TableCell className="font-medium">{r.name}</TableCell><TableCell>{r.email}</TableCell></TableRow>)}</TableBody>
+                <TableBody>
+                  {receptionists.map(r => <TableRow key={r.id}><TableCell className="font-medium">{r.name}</TableCell><TableCell>{r.email}</TableCell></TableRow>)}
+                  {receptionists.length === 0 && (
+                    <TableRow><TableCell colSpan={2} className="text-center py-8 text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
+                  )}
+                </TableBody>
               </Table>
             </CardContent>
           </Card>
@@ -203,6 +278,7 @@ const AdminPanel: React.FC = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Treatment Modal */}
       <Dialog open={treatmentModal} onOpenChange={setTreatmentModal}>
         <DialogContent>
           <DialogHeader>
@@ -220,6 +296,45 @@ const AdminPanel: React.FC = () => {
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setTreatmentModal(false)}>{t('common.cancel')}</Button>
               <Button onClick={handleSaveTreatment}>{t('common.save')}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Modal */}
+      <Dialog open={userModal} onOpenChange={setUserModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {userForm.role === 'doctor' ? t('admin.addDoctor') : t('admin.addReceptionist')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('patients.name')} *</label>
+              <Input value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('auth.email')} *</label>
+              <Input type="email" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('auth.password')} *</label>
+              <Input type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Role</label>
+              <Select value={userForm.role} onValueChange={v => setUserForm(f => ({ ...f, role: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="doctor">{t('admin.doctors')}</SelectItem>
+                  <SelectItem value="reception">{t('admin.receptionists')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
+              <Button onClick={handleCreateUser}>{t('common.save')}</Button>
             </div>
           </div>
         </DialogContent>
