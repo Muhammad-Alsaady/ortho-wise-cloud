@@ -17,6 +17,7 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.admin': { en: 'Admin Panel', ar: 'لوحة الإدارة' },
   'nav.logout': { en: 'Logout', ar: 'تسجيل الخروج' },
   'nav.superadmin': { en: 'Super Admin', ar: 'المدير العام' },
+  'nav.profile': { en: 'Profile', ar: 'الملف الشخصي' },
 
   // Auth
   'auth.login': { en: 'Sign In', ar: 'تسجيل الدخول' },
@@ -25,6 +26,11 @@ const translations: Record<string, Record<Language, string>> = {
   'auth.signingIn': { en: 'Signing in...', ar: 'جاري تسجيل الدخول...' },
   'auth.welcome': { en: 'Dental Clinic Management', ar: 'إدارة عيادة الأسنان' },
   'auth.subtitle': { en: 'Sign in to your account', ar: 'سجل دخولك إلى حسابك' },
+  'auth.forgotPassword': { en: 'Forgot password?', ar: 'هل نسيت كلمة المرور؟' },
+  'auth.sendResetLink': { en: 'Send Reset Link', ar: 'إرسال رابط إعادة التعيين' },
+  'auth.resetSent': { en: 'Check your email for a reset link.', ar: 'تحقق من بريدك الإلكتروني للحصول على رابط إعادة التعيين.' },
+  'auth.resetDesc': { en: 'Enter your email to receive a password reset link.', ar: 'أدخل بريدك الإلكتروني لتلقي رابط إعادة تعيين كلمة المرور.' },
+  'auth.backToLogin': { en: 'Back to login', ar: 'العودة لتسجيل الدخول' },
 
   // Reception
   'reception.title': { en: 'Reception Dashboard', ar: 'لوحة الاستقبال' },
@@ -45,6 +51,9 @@ const translations: Record<string, Record<Language, string>> = {
   'reception.existingPatientFound': { en: 'Existing patient found', ar: 'تم العثور على مريض مسجل' },
   'reception.newPatient': { en: 'New patient — enter details', ar: 'مريض جديد — أدخل البيانات' },
   'reception.lastVisit': { en: 'Last visit', ar: 'آخر زيارة' },
+  'reception.cancelAppointment': { en: 'Cancel Appointment', ar: 'إلغاء الموعد' },
+  'reception.cancelConfirm': { en: 'Are you sure you want to cancel this appointment?', ar: 'هل أنت متأكد أنك تريد إلغاء هذا الموعد؟' },
+  'reception.appointmentCancelled': { en: 'Appointment cancelled', ar: 'تم إلغاء الموعد' },
 
   // Patients
   'patients.title': { en: 'Patient Management', ar: 'إدارة المرضى' },
@@ -57,6 +66,9 @@ const translations: Record<string, Record<Language, string>> = {
   'patients.search': { en: 'Search patients...', ar: 'بحث عن مريض...' },
   'patients.viewProfile': { en: 'View Profile', ar: 'عرض الملف' },
   'patients.noPatients': { en: 'No patients found', ar: 'لا يوجد مرضى' },
+  'patients.history': { en: 'Visit History', ar: 'سجل الزيارات' },
+  'patients.page': { en: 'Page', ar: 'صفحة' },
+  'patients.total': { en: 'total', ar: 'إجمالي' },
 
   // Doctor
   'doctor.queue': { en: 'My Queue', ar: 'قائمة المرضى' },
@@ -75,6 +87,8 @@ const translations: Record<string, Record<Language, string>> = {
   'doctor.total': { en: 'Total', ar: 'الإجمالي' },
   'doctor.uploadImage': { en: 'Upload Image', ar: 'رفع صورة' },
   'doctor.saveNotes': { en: 'Save Notes', ar: 'حفظ الملاحظات' },
+  'doctor.deleteTreatmentPlan': { en: 'Remove Treatment', ar: 'إزالة العلاج' },
+  'doctor.deleteTreatmentPlanConfirm': { en: 'Are you sure you want to remove this treatment from the plan?', ar: 'هل أنت متأكد أنك تريد إزالة هذا العلاج من الخطة؟' },
 
   // Admin
   'admin.title': { en: 'Admin Panel', ar: 'لوحة الإدارة' },
@@ -87,6 +101,11 @@ const translations: Record<string, Record<Language, string>> = {
   'admin.editTreatment': { en: 'Edit Treatment', ar: 'تعديل العلاج' },
   'admin.treatmentName': { en: 'Treatment Name', ar: 'اسم العلاج' },
   'admin.price': { en: 'Price', ar: 'السعر' },
+  'admin.deleteTreatment': { en: 'Delete Treatment', ar: 'حذف العلاج' },
+  'admin.deleteTreatmentConfirm': { en: 'Are you sure you want to delete this treatment? This cannot be undone.', ar: 'هل أنت متأكد أنك تريد حذف هذا العلاج؟ لا يمكن التراجع عن هذا.' },
+  'admin.deactivateUser': { en: 'Deactivate User', ar: 'تعطيل المستخدم' },
+  'admin.deactivateUserConfirm': { en: 'Are you sure you want to deactivate this user? They will no longer be able to sign in.', ar: 'هل أنت متأكد أنك تريد تعطيل هذا المستخدم؟ لن يتمكن من تسجيل الدخول بعد ذلك.' },
+  'admin.userDeactivated': { en: 'User deactivated', ar: 'تم تعطيل المستخدم' },
 
   // Payment
   'payment.title': { en: 'Payment', ar: 'الدفع' },
@@ -98,6 +117,14 @@ const translations: Record<string, Record<Language, string>> = {
   'payment.totalBilled': { en: 'Total Billed', ar: 'إجمالي الفاتورة' },
   'payment.totalPaid': { en: 'Total Paid', ar: 'إجمالي المدفوع' },
   'payment.balance': { en: 'Balance', ar: 'الرصيد المتبقي' },
+
+  // Profile
+  'profile.title': { en: 'Profile', ar: 'الملف الشخصي' },
+  'profile.changePassword': { en: 'Change Password', ar: 'تغيير كلمة المرور' },
+  'profile.newPassword': { en: 'New Password', ar: 'كلمة المرور الجديدة' },
+  'profile.confirmPassword': { en: 'Confirm Password', ar: 'تأكيد كلمة المرور' },
+  'profile.nameUpdated': { en: 'Name updated successfully', ar: 'تم تحديث الاسم بنجاح' },
+  'profile.passwordChanged': { en: 'Password changed successfully', ar: 'تم تغيير كلمة المرور بنجاح' },
 
   // Common
   'common.save': { en: 'Save', ar: 'حفظ' },

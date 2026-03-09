@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,23 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Building2, Users, Edit, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-
-const invokeManageUser = async (body: Record<string, any>) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  const res = await fetch(`https://${projectId}.supabase.co/functions/v1/manage-user`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
-  return data;
-};
+import { invokeManageUser } from '@/lib/api';
 
 const SuperAdmin: React.FC = () => {
   const { t } = useLanguage();
@@ -38,12 +21,10 @@ const SuperAdmin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedClinicId, setSelectedClinicId] = useState<string>('');
 
-  // Clinic modal
   const [clinicModal, setClinicModal] = useState(false);
   const [editingClinic, setEditingClinic] = useState<any>(null);
   const [clinicForm, setClinicForm] = useState({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
 
-  // User modal (admin users only from superadmin)
   const [userModal, setUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
 
@@ -146,14 +127,8 @@ const SuperAdmin: React.FC = () => {
     <div className="space-y-4">
       <Tabs defaultValue="clinics">
         <TabsList>
-          <TabsTrigger value="clinics">
-            <Building2 className="me-2 h-4 w-4" />
-            Clinics
-          </TabsTrigger>
-          <TabsTrigger value="users">
-            <Users className="me-2 h-4 w-4" />
-            Admin Users
-          </TabsTrigger>
+          <TabsTrigger value="clinics"><Building2 className="me-2 h-4 w-4" />Clinics</TabsTrigger>
+          <TabsTrigger value="users"><Users className="me-2 h-4 w-4" />Admin Users</TabsTrigger>
         </TabsList>
 
         <TabsContent value="clinics" className="mt-4">

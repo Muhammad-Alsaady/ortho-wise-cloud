@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Plus, Edit, Eye } from 'lucide-react';
+import { Search, Plus, Edit, Eye, History, ChevronLeft, ChevronRight } from 'lucide-react';
 import PatientModal from '@/components/modals/PatientModal';
 import PatientProfileModal from '@/components/modals/PatientProfileModal';
+import PatientHistoryModal from '@/components/modals/PatientHistoryModal';
+
+const PAGE_SIZE = 20;
 
 const PatientManagement: React.FC = () => {
   const { clinicId } = useAuth();
@@ -19,26 +22,37 @@ const PatientManagement: React.FC = () => {
   const [editPatient, setEditPatient] = useState<any>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [profilePatient, setProfilePatient] = useState<any>(null);
+  const [historyPatient, setHistoryPatient] = useState<any>(null);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   const fetchPatients = async () => {
     if (!clinicId) return;
     setLoading(true);
-    const { data } = await supabase
+
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
       .from('patients')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('clinic_id', clinicId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+    }
+
+    const { data, count } = await query;
     setPatients(data || []);
+    setTotalCount(count || 0);
     setLoading(false);
   };
 
-  useEffect(() => { fetchPatients(); }, [clinicId]);
+  useEffect(() => { fetchPatients(); }, [clinicId, page, search]);
 
-  const filtered = useMemo(() => {
-    if (!search) return patients;
-    const q = search.toLowerCase();
-    return patients.filter(p => p.name?.toLowerCase().includes(q) || p.phone?.includes(q));
-  }, [patients, search]);
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -46,7 +60,12 @@ const PatientManagement: React.FC = () => {
         <CardContent className="flex flex-wrap items-center gap-3 p-4">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder={t('patients.search')} value={search} onChange={(e) => setSearch(e.target.value)} className="ps-10" />
+            <Input
+              placeholder={t('patients.search')}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+              className="ps-10"
+            />
           </div>
           <Button onClick={() => setShowAdd(true)}>
             <Plus className="me-2 h-4 w-4" />
@@ -70,9 +89,9 @@ const PatientManagement: React.FC = () => {
             <TableBody>
               {loading ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
-              ) : filtered.length === 0 ? (
+              ) : patients.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{t('patients.noPatients')}</TableCell></TableRow>
-              ) : filtered.map((p) => (
+              ) : patients.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.phone}</TableCell>
@@ -83,6 +102,9 @@ const PatientManagement: React.FC = () => {
                       <Button size="sm" variant="ghost" onClick={() => setProfilePatient(p)}>
                         <Eye className="h-4 w-4" />
                       </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setHistoryPatient(p)}>
+                        <History className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditPatient(p)}>
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -92,6 +114,23 @@ const PatientManagement: React.FC = () => {
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-sm text-muted-foreground">
+                {t('patients.page')} {page + 1} / {totalPages} ({totalCount} {t('patients.total')})
+              </span>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="outline" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -108,6 +147,14 @@ const PatientManagement: React.FC = () => {
           open={!!profilePatient}
           patient={profilePatient}
           onClose={() => setProfilePatient(null)}
+        />
+      )}
+
+      {historyPatient && (
+        <PatientHistoryModal
+          open={!!historyPatient}
+          patient={historyPatient}
+          onClose={() => setHistoryPatient(null)}
         />
       )}
     </div>
