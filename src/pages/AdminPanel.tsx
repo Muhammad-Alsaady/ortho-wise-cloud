@@ -281,7 +281,7 @@ const AdminPanel: React.FC = () => {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>{t('admin.receptionists')}</CardTitle>
-              <Button onClick={() => { setUserForm({ email: '', password: '', name: '', role: 'reception' }); setUserModal(true); }}>
+              <Button onClick={() => { userFormMethods.reset({ name: '', email: '', password: '', role: 'reception' }); setUserModal(true); }}>
                 <UserPlus className="me-2 h-4 w-4" />{t('admin.addReceptionist')}
               </Button>
             </CardHeader>
