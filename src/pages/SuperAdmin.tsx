@@ -84,16 +84,12 @@ const SuperAdmin: React.FC = () => {
     }
   };
 
-  const handleCreateAdmin = async () => {
+  const handleCreateAdmin = async (values: z.infer<typeof adminSchema>) => {
     try {
-      if (!userForm.email || !userForm.password || !userForm.name || !userForm.clinic_id) {
-        toast({ title: 'Error', description: 'All fields are required', variant: 'destructive' });
-        return;
-      }
-      await invokeManageUser({ action: 'create_user', ...userForm, role: 'admin' });
+      await invokeManageUser({ action: 'create_user', ...values, role: 'admin' });
       toast({ title: 'Admin user created successfully' });
       setUserModal(false);
-      setUserForm({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
+      adminFormMethods.reset();
       fetchUsers(selectedClinicId || undefined);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
