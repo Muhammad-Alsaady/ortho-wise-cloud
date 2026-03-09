@@ -43,6 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // Safety net: never stay loading more than 8 seconds
+    const timeout = setTimeout(() => setLoading(false), 8000);
+
     // Set up listener BEFORE getSession to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
@@ -57,19 +60,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Instant initial state on refresh
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        fetchUserData(currentUser.id)
-          .catch(e => console.error('fetchUserData error:', e))
-          .finally(() => setLoading(false));
-      } else {
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          fetchUserData(currentUser.id)
+            .catch(e => console.error('fetchUserData error:', e))
+            .finally(() => setLoading(false));
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(e => {
+        console.error('getSession error:', e);
         setLoading(false);
-      }
-    });
+      });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
