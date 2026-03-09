@@ -49,7 +49,10 @@ const AdminPanel: React.FC = () => {
 
   // User modal
   const [userModal, setUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', role: 'doctor' });
+  const userFormMethods = useForm<z.infer<typeof userSchema>>({
+    resolver: zodResolver(userSchema),
+    defaultValues: { name: '', email: '', password: '', role: 'doctor' },
+  });
 
   // Deactivate user
   const [deactivateTarget, setDeactivateTarget] = useState<any>(null);
