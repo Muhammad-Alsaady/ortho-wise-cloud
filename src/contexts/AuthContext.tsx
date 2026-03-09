@@ -43,8 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    let initialLoadDone = false;
-
+    // Set up listener BEFORE getSession to avoid missing events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
@@ -54,25 +53,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole(null);
       }
-      if (!initialLoadDone) {
-        initialLoadDone = true;
+      setLoading(false);
+    });
+
+    // Instant initial state on refresh
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        fetchUserData(currentUser.id)
+          .catch(e => console.error('fetchUserData error:', e))
+          .finally(() => setLoading(false));
+      } else {
         setLoading(false);
       }
     });
 
-    // Safety timeout in case onAuthStateChange never fires
-    const timeout = setTimeout(() => {
-      if (!initialLoadDone) {
-        console.warn('Auth loading timeout — forcing loading=false');
-        initialLoadDone = true;
-        setLoading(false);
-      }
-    }, 5000);
-
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
