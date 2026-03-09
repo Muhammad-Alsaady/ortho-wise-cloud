@@ -53,14 +53,19 @@ Deno.serve(async (req) => {
     const clinicId = profile.clinic_id;
 
     // Export all clinic data
-    const [patients, appointments, visits, treatmentPlans, payments, treatments] = await Promise.all([
+    const [patients, appointments, visits, treatmentPlans, treatments] = await Promise.all([
       supabaseAdmin.from('patients').select('*').eq('clinic_id', clinicId),
       supabaseAdmin.from('appointments').select('*').eq('clinic_id', clinicId),
       supabaseAdmin.from('visits').select('*').eq('clinic_id', clinicId),
       supabaseAdmin.from('treatment_plans').select('*, visits!inner(clinic_id)').eq('visits.clinic_id', clinicId),
-      supabaseAdmin.from('payments').select('*, treatment_plans!inner(visit_id, visits!inner(clinic_id))'),
       supabaseAdmin.from('treatments').select('*').eq('clinic_id', clinicId),
     ]);
+
+    // Scope payments strictly to this clinic's treatment plans (payments has no clinic_id column)
+    const tpIds = (treatmentPlans.data || []).map((tp: { id: string }) => tp.id);
+    const payments = tpIds.length > 0
+      ? await supabaseAdmin.from('payments').select('*').in('treatment_plan_id', tpIds)
+      : { data: [] };
 
     const backup = {
       exported_at: new Date().toISOString(),
