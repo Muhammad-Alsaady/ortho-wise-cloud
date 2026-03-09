@@ -15,6 +15,16 @@ import { Plus, Edit, Download, UserPlus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AuditLogs from '@/components/AuditLogs';
 import { invokeManageUser } from '@/lib/api';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const userSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['doctor', 'reception']),
+});
 
 const AdminPanel: React.FC = () => {
   const { clinicId } = useAuth();
@@ -39,7 +49,10 @@ const AdminPanel: React.FC = () => {
 
   // User modal
   const [userModal, setUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', role: 'doctor' });
+  const userFormMethods = useForm<z.infer<typeof userSchema>>({
+    resolver: zodResolver(userSchema),
+    defaultValues: { name: '', email: '', password: '', role: 'doctor' },
+  });
 
   // Deactivate user
   const [deactivateTarget, setDeactivateTarget] = useState<any>(null);
@@ -113,24 +126,20 @@ const AdminPanel: React.FC = () => {
     setDeleteTreatmentTarget(null);
   };
 
-  const handleCreateUser = async () => {
+  const handleCreateUser = async (values: z.infer<typeof userSchema>) => {
     if (!clinicId) return;
     try {
-      if (!userForm.email || !userForm.password || !userForm.name) {
-        toast({ title: 'Error', description: 'All fields are required', variant: 'destructive' });
-        return;
-      }
       await invokeManageUser({
         action: 'create_user',
-        email: userForm.email,
-        password: userForm.password,
-        name: userForm.name,
+        email: values.email,
+        password: values.password,
+        name: values.name,
         clinic_id: clinicId,
-        role: userForm.role,
+        role: values.role,
       });
-      toast({ title: `${userForm.role === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully` });
+      toast({ title: `${values.role === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully` });
       setUserModal(false);
-      setUserForm({ email: '', password: '', name: '', role: 'doctor' });
+      userFormMethods.reset();
       fetchData();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -240,7 +249,7 @@ const AdminPanel: React.FC = () => {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>{t('admin.doctors')}</CardTitle>
-              <Button onClick={() => { setUserForm({ email: '', password: '', name: '', role: 'doctor' }); setUserModal(true); }}>
+              <Button onClick={() => { userFormMethods.reset({ name: '', email: '', password: '', role: 'doctor' }); setUserModal(true); }}>
                 <UserPlus className="me-2 h-4 w-4" />{t('admin.addDoctor')}
               </Button>
             </CardHeader>
@@ -272,7 +281,7 @@ const AdminPanel: React.FC = () => {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>{t('admin.receptionists')}</CardTitle>
-              <Button onClick={() => { setUserForm({ email: '', password: '', name: '', role: 'reception' }); setUserModal(true); }}>
+              <Button onClick={() => { userFormMethods.reset({ name: '', email: '', password: '', role: 'reception' }); setUserModal(true); }}>
                 <UserPlus className="me-2 h-4 w-4" />{t('admin.addReceptionist')}
               </Button>
             </CardHeader>
@@ -348,25 +357,28 @@ const AdminPanel: React.FC = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {userForm.role === 'doctor' ? t('admin.addDoctor') : t('admin.addReceptionist')}
+              {userFormMethods.watch('role') === 'doctor' ? t('admin.addDoctor') : t('admin.addReceptionist')}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={userFormMethods.handleSubmit(handleCreateUser)} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('patients.name')} *</label>
-              <Input value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} />
+              <Input {...userFormMethods.register('name')} />
+              {userFormMethods.formState.errors.name && <p className="text-sm text-destructive">{userFormMethods.formState.errors.name.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.email')} *</label>
-              <Input type="email" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} />
+              <Input type="email" {...userFormMethods.register('email')} />
+              {userFormMethods.formState.errors.email && <p className="text-sm text-destructive">{userFormMethods.formState.errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.password')} *</label>
-              <Input type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
+              <Input type="password" {...userFormMethods.register('password')} />
+              {userFormMethods.formState.errors.password && <p className="text-sm text-destructive">{userFormMethods.formState.errors.password.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Role</label>
-              <Select value={userForm.role} onValueChange={v => setUserForm(f => ({ ...f, role: v }))}>
+              <Select value={userFormMethods.watch('role')} onValueChange={v => userFormMethods.setValue('role', v as 'doctor' | 'reception')}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="doctor">{t('admin.doctors')}</SelectItem>
@@ -375,10 +387,10 @@ const AdminPanel: React.FC = () => {
               </Select>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleCreateUser}>{t('common.save')}</Button>
+              <Button type="button" variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
+              <Button type="submit">{t('common.save')}</Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 

@@ -11,6 +11,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Building2, Users, Edit, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { invokeManageUser } from '@/lib/api';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const adminSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  clinic_id: z.string().uuid('Please select a clinic'),
+});
 
 const SuperAdmin: React.FC = () => {
   const { t } = useLanguage();
@@ -26,7 +36,10 @@ const SuperAdmin: React.FC = () => {
   const [clinicForm, setClinicForm] = useState({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
 
   const [userModal, setUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
+  const adminFormMethods = useForm<z.infer<typeof adminSchema>>({
+    resolver: zodResolver(adminSchema),
+    defaultValues: { name: '', email: '', password: '', clinic_id: '' },
+  });
 
   const fetchClinics = async () => {
     try {
@@ -71,16 +84,12 @@ const SuperAdmin: React.FC = () => {
     }
   };
 
-  const handleCreateAdmin = async () => {
+  const handleCreateAdmin = async (values: z.infer<typeof adminSchema>) => {
     try {
-      if (!userForm.email || !userForm.password || !userForm.name || !userForm.clinic_id) {
-        toast({ title: 'Error', description: 'All fields are required', variant: 'destructive' });
-        return;
-      }
-      await invokeManageUser({ action: 'create_user', ...userForm, role: 'admin' });
+      await invokeManageUser({ action: 'create_user', ...values, role: 'admin' });
       toast({ title: 'Admin user created successfully' });
       setUserModal(false);
-      setUserForm({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
+      adminFormMethods.reset();
       fetchUsers(selectedClinicId || undefined);
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -196,7 +205,7 @@ const SuperAdmin: React.FC = () => {
                     {clinics.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button onClick={() => { setUserForm({ email: '', password: '', name: '', clinic_id: selectedClinicId || '', role: 'admin' }); setUserModal(true); }}>
+                <Button onClick={() => { adminFormMethods.reset({ name: '', email: '', password: '', clinic_id: selectedClinicId || '' }); setUserModal(true); }}>
                   <Plus className="me-2 h-4 w-4" />Add Admin
                 </Button>
               </div>
@@ -303,22 +312,25 @@ const SuperAdmin: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Create Clinic Admin</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={adminFormMethods.handleSubmit(handleCreateAdmin)} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('patients.name')} *</label>
-              <Input value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} />
+              <Input {...adminFormMethods.register('name')} />
+              {adminFormMethods.formState.errors.name && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.name.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.email')} *</label>
-              <Input type="email" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} />
+              <Input type="email" {...adminFormMethods.register('email')} />
+              {adminFormMethods.formState.errors.email && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('auth.password')} *</label>
-              <Input type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} />
+              <Input type="password" {...adminFormMethods.register('password')} />
+              {adminFormMethods.formState.errors.password && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.password.message}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Clinic *</label>
-              <Select value={userForm.clinic_id} onValueChange={v => setUserForm(f => ({ ...f, clinic_id: v }))}>
+              <Select value={adminFormMethods.watch('clinic_id')} onValueChange={v => adminFormMethods.setValue('clinic_id', v)}>
                 <SelectTrigger><SelectValue placeholder="Select clinic" /></SelectTrigger>
                 <SelectContent>
                   {clinics.map(c => (
@@ -328,12 +340,13 @@ const SuperAdmin: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+              {adminFormMethods.formState.errors.clinic_id && <p className="text-sm text-destructive">{adminFormMethods.formState.errors.clinic_id.message}</p>}
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleCreateAdmin}>Create Admin</Button>
+              <Button type="button" variant="outline" onClick={() => setUserModal(false)}>{t('common.cancel')}</Button>
+              <Button type="submit">Create Admin</Button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
