@@ -9,27 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, Download, UserPlus } from 'lucide-react';
+import { Plus, Edit, Download, UserPlus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AuditLogs from '@/components/AuditLogs';
-
-const invokeManageUser = async (body: Record<string, any>) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  const res = await fetch(`https://${projectId}.supabase.co/functions/v1/manage-user`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
-  return data;
-};
+import { invokeManageUser } from '@/lib/api';
 
 const AdminPanel: React.FC = () => {
   const { clinicId } = useAuth();
@@ -48,32 +33,38 @@ const AdminPanel: React.FC = () => {
   const [treatmentName, setTreatmentName] = useState('');
   const [treatmentPrice, setTreatmentPrice] = useState('');
 
-  // User modal (for creating doctors/receptionists)
+  // Delete treatment
+  const [deleteTreatmentTarget, setDeleteTreatmentTarget] = useState<any>(null);
+  const [deleteTreatmentLoading, setDeleteTreatmentLoading] = useState(false);
+
+  // User modal
   const [userModal, setUserModal] = useState(false);
   const [userForm, setUserForm] = useState({ email: '', password: '', name: '', role: 'doctor' });
+
+  // Deactivate user
+  const [deactivateTarget, setDeactivateTarget] = useState<any>(null);
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
 
   const fetchData = async () => {
     if (!clinicId) return;
     setLoading(true);
 
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*, user_roles(role)')
-      .eq('clinic_id', clinicId);
-
-    const docs: any[] = [];
-    const recs: any[] = [];
-    (profiles || []).forEach(p => {
-      const roles = (p as any).user_roles;
-      if (Array.isArray(roles)) {
+    try {
+      const profiles = await invokeManageUser({ action: 'list_users', clinic_id: clinicId });
+      const docs: any[] = [];
+      const recs: any[] = [];
+      (profiles || []).forEach((p: any) => {
+        const roles = Array.isArray(p.user_roles) ? p.user_roles : [];
         roles.forEach((r: any) => {
           if (r.role === 'doctor') docs.push(p);
           if (r.role === 'reception') recs.push(p);
         });
-      }
-    });
-    setDoctors(docs);
-    setReceptionists(recs);
+      });
+      setDoctors(docs);
+      setReceptionists(recs);
+    } catch (err: any) {
+      console.error('fetchData error:', err);
+    }
 
     const { data: txs } = await supabase
       .from('treatments')
@@ -109,6 +100,19 @@ const AdminPanel: React.FC = () => {
     setTreatmentModal(true);
   };
 
+  const handleDeleteTreatment = async () => {
+    if (!deleteTreatmentTarget) return;
+    setDeleteTreatmentLoading(true);
+    const { error } = await supabase.from('treatments').delete().eq('id', deleteTreatmentTarget.id);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      fetchData();
+    }
+    setDeleteTreatmentLoading(false);
+    setDeleteTreatmentTarget(null);
+  };
+
   const handleCreateUser = async () => {
     if (!clinicId) return;
     try {
@@ -131,6 +135,20 @@ const AdminPanel: React.FC = () => {
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
+  };
+
+  const handleDeactivateUser = async () => {
+    if (!deactivateTarget) return;
+    setDeactivateLoading(true);
+    try {
+      await invokeManageUser({ action: 'delete_user', user_id: deactivateTarget.user_id });
+      toast({ title: t('admin.userDeactivated') });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+    setDeactivateLoading(false);
+    setDeactivateTarget(null);
   };
 
   const handleBackup = async () => {
@@ -160,7 +178,6 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Clinic Tenant ID */}
       {clinicId && (
         <Card>
           <CardContent className="flex items-center gap-3 py-3">
@@ -202,9 +219,14 @@ const AdminPanel: React.FC = () => {
                       <TableCell className="font-medium">{tx.name}</TableCell>
                       <TableCell>{tx.price}</TableCell>
                       <TableCell>
-                        <Button size="sm" variant="ghost" onClick={() => openEditTreatment(tx)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => openEditTreatment(tx)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteTreatmentTarget(tx)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -224,11 +246,21 @@ const AdminPanel: React.FC = () => {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>{t('patients.name')}</TableHead><TableHead>{t('auth.email')}</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>{t('patients.name')}</TableHead><TableHead>{t('auth.email')}</TableHead><TableHead>{t('reception.actions')}</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {doctors.map(d => <TableRow key={d.id}><TableCell className="font-medium">{d.name}</TableCell><TableCell>{d.email}</TableCell></TableRow>)}
+                  {doctors.map(d => (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-medium">{d.name}</TableCell>
+                      <TableCell>{d.email}</TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeactivateTarget(d)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                   {doctors.length === 0 && (
-                    <TableRow><TableCell colSpan={2} className="text-center py-8 text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -246,11 +278,21 @@ const AdminPanel: React.FC = () => {
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>{t('patients.name')}</TableHead><TableHead>{t('auth.email')}</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>{t('patients.name')}</TableHead><TableHead>{t('auth.email')}</TableHead><TableHead>{t('reception.actions')}</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {receptionists.map(r => <TableRow key={r.id}><TableCell className="font-medium">{r.name}</TableCell><TableCell>{r.email}</TableCell></TableRow>)}
+                  {receptionists.map(r => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell>{r.email}</TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeactivateTarget(r)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                   {receptionists.length === 0 && (
-                    <TableRow><TableCell colSpan={2} className="text-center py-8 text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -339,6 +381,38 @@ const AdminPanel: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Treatment Confirmation */}
+      <AlertDialog open={!!deleteTreatmentTarget} onOpenChange={() => setDeleteTreatmentTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('admin.deleteTreatment')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('admin.deleteTreatmentConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTreatment} disabled={deleteTreatmentLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteTreatmentLoading ? t('common.loading') : t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Deactivate User Confirmation */}
+      <AlertDialog open={!!deactivateTarget} onOpenChange={() => setDeactivateTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('admin.deactivateUser')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('admin.deactivateUserConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeactivateUser} disabled={deactivateLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deactivateLoading ? t('common.loading') : t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

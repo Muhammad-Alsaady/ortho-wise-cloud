@@ -9,8 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
-import { CalendarIcon, Search, Plus, Send, CreditCard, Pencil } from 'lucide-react';
+import { CalendarIcon, Search, Plus, Send, CreditCard, Pencil, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AppointmentModal from '@/components/modals/AppointmentModal';
 import EditAppointmentModal from '@/components/modals/EditAppointmentModal';
@@ -36,6 +37,8 @@ const ReceptionDashboard: React.FC = () => {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [editAppointment, setEditAppointment] = useState<any>(null);
   const [paymentAppointment, setPaymentAppointment] = useState<any>(null);
+  const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const fetchAppointments = async () => {
     if (!clinicId) return;
@@ -55,52 +58,42 @@ const ReceptionDashboard: React.FC = () => {
 
     if (error) {
       console.error(error);
-    } else {
-      // Fetch visit/payment data for each appointment
-      const enriched = await Promise.all((data || []).map(async (apt) => {
-        const { data: visits } = await supabase
-          .from('visits')
-          .select('id')
-          .eq('appointment_id', apt.id);
-        
-        let treatmentCount = 0;
-        let totalBilled = 0;
-        let totalPaid = 0;
-
-        if (visits && visits.length > 0) {
-          const visitIds = visits.map(v => v.id);
-          const { data: plans } = await supabase
-            .from('treatment_plans')
-            .select('id, price, discount')
-            .in('visit_id', visitIds);
-          
-          if (plans) {
-            treatmentCount = plans.length;
-            totalBilled = plans.reduce((s, p) => s + Number(p.price) - Number(p.discount), 0);
-            
-            const planIds = plans.map(p => p.id);
-            if (planIds.length > 0) {
-              const { data: payments } = await supabase
-                .from('payments')
-                .select('amount')
-                .in('treatment_plan_id', planIds);
-              totalPaid = payments?.reduce((s, p) => s + Number(p.amount), 0) || 0;
-            }
-          }
-        }
-
-        return { ...apt, treatmentCount, totalBilled, totalPaid };
-      }));
-
-      setAppointments(enriched);
+      setAppointments([]);
+      setLoading(false);
+      return;
     }
+
+    const aptIds = (data || []).map(a => a.id);
+    let summaryMap: Record<string, any> = {};
+
+    if (aptIds.length > 0) {
+      const { data: summaries } = await supabase
+        .from('appointment_summary')
+        .select('*')
+        .in('appointment_id', aptIds);
+
+      (summaries || []).forEach(s => {
+        summaryMap[s.appointment_id] = s;
+      });
+    }
+
+    const enriched = (data || []).map(apt => {
+      const summary = summaryMap[apt.id];
+      return {
+        ...apt,
+        treatmentCount: Number(summary?.treatment_count || 0),
+        totalBilled: Number(summary?.total_billed || 0),
+        totalPaid: Number(summary?.total_paid || 0),
+      };
+    });
+
+    setAppointments(enriched);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchAppointments();
 
-    // Realtime subscription
     const channel = supabase
       .channel('appointments-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
@@ -132,6 +125,24 @@ const ReceptionDashboard: React.FC = () => {
       toast({ title: t('reception.sendToDoctor') });
       fetchAppointments();
     }
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!cancelTarget) return;
+    setCancelLoading(true);
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'Cancelled' as const })
+      .eq('id', cancelTarget.id);
+
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: t('reception.appointmentCancelled') });
+      fetchAppointments();
+    }
+    setCancelLoading(false);
+    setCancelTarget(null);
   };
 
   return (
@@ -216,6 +227,18 @@ const ReceptionDashboard: React.FC = () => {
                           {t('reception.sendToDoctor')}
                         </Button>
                       )}
+                      {(apt.status === 'WithDoctor' || apt.status === 'Completed') && apt.totalBilled > 0 && (
+                        <Button size="sm" variant="outline" onClick={() => setPaymentAppointment(apt)}>
+                          <CreditCard className="h-3 w-3 me-1" />
+                          {t('reception.payment')}
+                        </Button>
+                      )}
+                      {(apt.status === 'Booked' || apt.status === 'Waiting') && (
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setCancelTarget(apt)}>
+                          <XCircle className="h-3 w-3 me-1" />
+                          {t('common.cancel')}
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -247,6 +270,22 @@ const ReceptionDashboard: React.FC = () => {
           onClose={() => { setPaymentAppointment(null); fetchAppointments(); }}
         />
       )}
+
+      {/* Cancel Confirmation */}
+      <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('reception.cancelAppointment')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('reception.cancelConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelAppointment} disabled={cancelLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {cancelLoading ? t('common.loading') : t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
