@@ -36,7 +36,10 @@ const SuperAdmin: React.FC = () => {
   const [clinicForm, setClinicForm] = useState({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
 
   const [userModal, setUserModal] = useState(false);
-  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', clinic_id: '', role: 'admin' });
+  const adminFormMethods = useForm<z.infer<typeof adminSchema>>({
+    resolver: zodResolver(adminSchema),
+    defaultValues: { name: '', email: '', password: '', clinic_id: '' },
+  });
 
   const fetchClinics = async () => {
     try {
