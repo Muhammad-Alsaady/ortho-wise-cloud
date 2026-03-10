@@ -23,12 +23,20 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Authenticate caller
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user: caller } } = await callerClient.auth.getUser();
-    if (!caller) throw new Error("Not authenticated");
+    const authHeader = req.headers.get("Authorization");
+    
+    if (!authHeader) {
+      throw new Error("Missing authorization header");
+    }
+    
+    const token = authHeader.replace("Bearer ", "");
+    
+    const { data: { user: caller }, error: authError } =
+      await supabase.auth.getUser(token);
+    
+    if (authError || !caller) {
+      throw new Error("Not authenticated");
+    }
 
     // Get caller roles
     const { data: callerRoles } = await supabase
