@@ -120,7 +120,10 @@ Deno.serve(async (req) => {
 
       return json(data);
     }
-
+console.log("Caller:", caller.id)
+console.log("Roles:", roles)
+console.log("Action:", action)
+console.log("Payload:", payload)
     return json({ error: "Unknown action" }, 400);
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
