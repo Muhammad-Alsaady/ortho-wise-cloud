@@ -1,21 +1,24 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? 'mdcwkvsdkclwzqxxetiw';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kY3drdnNka2Nsd3pxeHhldGl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMjgyMjksImV4cCI6MjA4ODYwNDIyOX0.lfZ78KdMGKK51pWxe8oN7BNx4U09LnDUMXdecFb0qNs';
+/**
+ * Reusable helper for calling the manage-user Edge Function.
+ * Uses supabase.functions.invoke() so the Authorization + apikey headers
+ * are injected automatically from the active session.
+ */
+export const callManageUser = async (action: string, payload: Record<string, any> = {}) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User must be logged in before calling manage-user function');
 
-export const invokeManageUser = async (body: Record<string, any>) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-  const res = await fetch(`https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/manage-user`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'apikey': SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+  const { data, error } = await supabase.functions.invoke('manage-user', {
+    body: { action, ...payload },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+
+  if (error) throw error;
   return data;
+};
+
+/** @deprecated Use callManageUser instead */
+export const invokeManageUser = (body: Record<string, any>) => {
+  const { action, ...rest } = body;
+  return callManageUser(action, rest);
 };
