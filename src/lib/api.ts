@@ -50,9 +50,3 @@ export const invokeManageUser = (body: Record<string, any>) => {
   const { action, ...rest } = body;
   return callManageUser(action, rest);
 };
-
-/** @deprecated Use callManageUser instead */
-export const invokeManageUser = (body: Record<string, any>) => {
-  const { action, ...rest } = body;
-  return callManageUser(action, rest);
-};
