@@ -20,193 +20,108 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Authenticate caller
     const authHeader = req.headers.get("Authorization");
-    
+
     if (!authHeader) {
-      throw new Error("Missing authorization header");
-    }
-    
-    const token = authHeader.replace("Bearer ", "");
-    
-    const { data: { user: caller }, error: authError } =
-      await supabase.auth.getUser(token);
-    
-    if (authError || !caller) {
-      throw new Error("Not authenticated");
+      return json({ error: "Missing authorization header" }, 401);
     }
 
-    // Get caller roles
-    const { data: callerRoles } = await supabase
+    const token = authHeader.replace("Bearer ", "");
+
+    const { data: userData, error: authError } =
+      await supabase.auth.getUser(token);
+
+    if (authError || !userData.user) {
+      return json({ error: "Not authenticated" }, 401);
+    }
+
+    const caller = userData.user;
+
+    // Get caller role
+    const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id);
 
-    const roles = (callerRoles || []).map((r: any) => r.role);
+    const roles = (roleData || []).map((r: any) => r.role);
+
     const isSuperadmin = roles.includes("superadmin");
     const isAdmin = roles.includes("admin");
 
-    if (!isSuperadmin && !isAdmin) throw new Error("Unauthorized");
-
-    // Get caller's clinic_id (for admin scoping)
-    const { data: callerProfile } = await supabase
-      .from("profiles")
-      .select("clinic_id")
-      .eq("user_id", caller.id)
-      .single();
-
-    const callerClinicId = callerProfile?.clinic_id;
+    if (!isSuperadmin && !isAdmin) {
+      return json({ error: "Unauthorized" }, 401);
+    }
 
     const { action, ...payload } = await req.json();
 
-    // ── SuperAdmin-only actions ──────────────────────────────────
+    // SUPERADMIN: create clinic
     if (action === "create_clinic") {
-      if (!isSuperadmin) throw new Error("Unauthorized: superadmin only");
-      const { name, address, phone, license_expiry, plan_type } = payload;
+      if (!isSuperadmin) {
+        return json({ error: "Only superadmin can create clinics" }, 401);
+      }
+
+      const { name, address, phone } = payload;
+
       const { data, error } = await supabase
         .from("clinics")
-        .insert({ name, address, phone, license_expiry, plan_type: plan_type || "basic" })
+        .insert({ name, address, phone })
         .select()
         .single();
+
       if (error) throw error;
+
       return json(data);
     }
 
-    if (action === "update_clinic") {
-      if (!isSuperadmin) throw new Error("Unauthorized: superadmin only");
-      const { id, name, address, phone, license_expiry, plan_type } = payload;
-      const { data, error } = await supabase
-        .from("clinics")
-        .update({ name, address, phone, license_expiry, plan_type })
-        .eq("id", id)
-        .select()
-        .single();
-      if (error) throw error;
-      return json(data);
-    }
-
-    if (action === "list_clinics") {
-      if (!isSuperadmin) throw new Error("Unauthorized: superadmin only");
-      const { data, error } = await supabase.from("clinics").select("*").order("name");
-      if (error) throw error;
-      return json(data);
-    }
-
-    // ── Create user (superadmin or admin) ────────────────────────
+    // CREATE USER
     if (action === "create_user") {
       const { email, password, name, clinic_id, role } = payload;
 
-      // Admin can only create doctor/reception in their own clinic
-      if (isAdmin && !isSuperadmin) {
-        if (role === "superadmin" || role === "admin") {
-          throw new Error("Admins can only create doctor and reception users");
-        }
-        if (clinic_id !== callerClinicId) {
-          throw new Error("Admins can only create users in their own clinic");
-        }
+      if (!isSuperadmin && role === "admin") {
+        return json({ error: "Only superadmin can create admin users" }, 401);
       }
 
-      // SuperAdmin can create admin users; only they should create admins
-      if (role === "superadmin") {
-        throw new Error("Cannot create superadmin users");
-      }
+      const { data: authData, error: authError } =
+        await supabase.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+        });
 
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-      });
       if (authError) throw authError;
 
       const userId = authData.user.id;
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({ user_id: userId, name, email, clinic_id });
-      if (profileError) throw profileError;
+      await supabase.from("profiles").insert({
+        user_id: userId,
+        name,
+        email,
+        clinic_id,
+      });
 
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: userId, role });
-      if (roleError) throw roleError;
+      await supabase.from("user_roles").insert({
+        user_id: userId,
+        role,
+      });
 
-      return json({ id: userId, email, name, role, clinic_id });
+      return json({ success: true, user_id: userId });
     }
 
-    // ── List users (superadmin sees all, admin sees own clinic) ──
     if (action === "list_users") {
-      const { clinic_id } = payload;
-      const query = supabase.from("profiles").select("*").order("name");
-
-      if (isAdmin && !isSuperadmin) {
-        query.eq("clinic_id", callerClinicId);
-      } else if (clinic_id) {
-        query.eq("clinic_id", clinic_id);
-      }
-
-      const { data: profilesData, error: profilesError } = await query;
-      if (profilesError) throw profilesError;
-
-      // Fetch roles for all users
-      const userIds = (profilesData || []).map((p: any) => p.user_id);
-      const { data: rolesData } = userIds.length > 0
-        ? await supabase.from("user_roles").select("user_id, role").in("user_id", userIds)
-        : { data: [] };
-
-      // Merge roles into profiles
-      const result = (profilesData || []).map((p: any) => ({
-        ...p,
-        user_roles: (rolesData || []).filter((r: any) => r.user_id === p.user_id),
-      }));
-
-      return json(result);
-    }
-
-    // ── Delete/deactivate user ───────────────────────────────────
-    if (action === "delete_user") {
-      const { user_id } = payload;
-      if (!user_id) throw new Error("user_id is required");
-
-      // Get target user's profile to check clinic
-      const { data: targetProfile } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
-        .select("clinic_id")
-        .eq("user_id", user_id)
-        .single();
+        .select("*")
+        .order("name");
 
-      if (!targetProfile) throw new Error("User not found");
+      if (error) throw error;
 
-      // Admin can only delete users in their own clinic
-      if (isAdmin && !isSuperadmin) {
-        if (targetProfile.clinic_id !== callerClinicId) {
-          throw new Error("Cannot delete users from another clinic");
-        }
-        // Check target is not admin/superadmin
-        const { data: targetRoles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user_id);
-        const targetRoleNames = (targetRoles || []).map((r: any) => r.role);
-        if (targetRoleNames.includes("admin") || targetRoleNames.includes("superadmin")) {
-          throw new Error("Cannot delete admin users");
-        }
-      }
-
-      // Cannot delete yourself
-      if (user_id === caller.id) {
-        throw new Error("Cannot delete your own account");
-      }
-
-      // Delete from auth (cascades to profiles and user_roles via FK)
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
-      if (deleteError) throw deleteError;
-
-      return json({ success: true });
+      return json(data);
     }
 
-    throw new Error(`Unknown action: ${action}`);
+    return json({ error: "Unknown action" }, 400);
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 400,
