@@ -13,7 +13,23 @@ export const callManageUser = async (action: string, payload: Record<string, any
     body: { action, ...payload },
   });
 
-  if (error) throw error;
+  if (error) {
+    // FunctionsHttpError.context is the raw Response; extract the real message from the body
+    if (error.context instanceof Response) {
+      try {
+        const body = await (error.context as Response).clone().json();
+        throw new Error(body?.error || error.message);
+      } catch (parseErr: any) {
+        // if parseErr is already our re-thrown error, rethrow it
+        if (parseErr.message !== error.message) throw parseErr;
+      }
+    }
+    throw new Error(error.message);
+  }
+
+  // Edge function may return { error: '...' } with status 200 in some cases
+  if (data?.error) throw new Error(data.error);
+
   return data;
 };
 

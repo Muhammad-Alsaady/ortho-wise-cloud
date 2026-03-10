@@ -34,6 +34,7 @@ const SuperAdmin: React.FC = () => {
   const [clinicModal, setClinicModal] = useState(false);
   const [editingClinic, setEditingClinic] = useState<any>(null);
   const [clinicForm, setClinicForm] = useState({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
+  const [saving, setSaving] = useState(false);
 
   const [userModal, setUserModal] = useState(false);
   const adminFormMethods = useForm<z.infer<typeof adminSchema>>({
@@ -67,12 +68,18 @@ const SuperAdmin: React.FC = () => {
   }, []);
 
   const handleSaveClinic = async () => {
+    setSaving(true);
     try {
+      // Strip empty license_expiry — DB expects a DATE value or null, not ""
+      const payload = {
+        ...clinicForm,
+        license_expiry: clinicForm.license_expiry || null,
+      };
       if (editingClinic) {
-        await invokeManageUser({ action: 'update_clinic', id: editingClinic.id, ...clinicForm });
+        await invokeManageUser({ action: 'update_clinic', id: editingClinic.id, ...payload });
         toast({ title: 'Clinic updated' });
       } else {
-        await invokeManageUser({ action: 'create_clinic', ...clinicForm });
+        await invokeManageUser({ action: 'create_clinic', ...payload });
         toast({ title: 'Clinic created' });
       }
       setClinicModal(false);
@@ -80,7 +87,10 @@ const SuperAdmin: React.FC = () => {
       setClinicForm({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
       fetchClinics();
     } catch (err: any) {
+      console.error('[SuperAdmin] handleSaveClinic error:', err);
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -300,7 +310,9 @@ const SuperAdmin: React.FC = () => {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setClinicModal(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleSaveClinic} disabled={!clinicForm.name}>{t('common.save')}</Button>
+              <Button onClick={handleSaveClinic} disabled={!clinicForm.name || saving}>
+                {saving ? 'Saving…' : t('common.save')}
+              </Button>
             </div>
           </div>
         </DialogContent>
