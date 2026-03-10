@@ -74,6 +74,11 @@ Deno.serve(async (req) => {
 
     const callerClinicId: string | null = callerProfile?.clinic_id ?? null;
 
+    // Admins must always have a clinic — guard against broken state.
+    if (isAdmin && !isSuperadmin && !callerClinicId) {
+      return json({ error: "Admin account is not associated with any clinic. Contact a superadmin." }, 403);
+    }
+
     const { action, ...payload } = await req.json();
 
     // ── create_clinic (superadmin only) ───────────────────────────────────────
@@ -159,7 +164,7 @@ Deno.serve(async (req) => {
         .insert({ user_id: userId, name, email, clinic_id });
 
       if (profileError) {
-        await supabase.auth.admin.deleteUser(userId).catch(() => {});
+        await supabase.auth.admin.deleteUser(userId).catch(() => { });
         throw profileError;
       }
 
@@ -168,7 +173,7 @@ Deno.serve(async (req) => {
         .insert({ user_id: userId, role });
 
       if (roleError) {
-        await supabase.auth.admin.deleteUser(userId).catch(() => {});
+        await supabase.auth.admin.deleteUser(userId).catch(() => { });
         throw roleError;
       }
 
@@ -193,9 +198,9 @@ Deno.serve(async (req) => {
       const userIds = (profilesData ?? []).map((p: any) => p.user_id as string);
       const { data: rolesData } = userIds.length > 0
         ? await supabase
-            .from("user_roles")
-            .select("user_id, role")
-            .in("user_id", userIds)
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", userIds)
         : { data: [] };
 
       const result = (profilesData ?? []).map((p: any) => ({

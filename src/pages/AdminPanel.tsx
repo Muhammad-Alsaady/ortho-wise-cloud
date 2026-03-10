@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Edit, Download, UserPlus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AuditLogs from '@/components/AuditLogs';
-import { invokeManageUser } from '@/lib/api';
+import { callManageUser } from '@/lib/api';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -63,7 +63,7 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
 
     try {
-      const profiles = await invokeManageUser({ action: 'list_users', clinic_id: clinicId });
+      const profiles = await callManageUser('list_users', { clinic_id: clinicId });
       const docs: any[] = [];
       const recs: any[] = [];
       (profiles || []).forEach((p: any) => {
@@ -129,8 +129,7 @@ const AdminPanel: React.FC = () => {
   const handleCreateUser = async (values: z.infer<typeof userSchema>) => {
     if (!clinicId) return;
     try {
-      await invokeManageUser({
-        action: 'create_user',
+      await callManageUser('create_user', {
         email: values.email,
         password: values.password,
         name: values.name,
@@ -150,7 +149,7 @@ const AdminPanel: React.FC = () => {
     if (!deactivateTarget) return;
     setDeactivateLoading(true);
     try {
-      await invokeManageUser({ action: 'delete_user', user_id: deactivateTarget.user_id });
+      await callManageUser('delete_user', { user_id: deactivateTarget.user_id });
       toast({ title: t('admin.userDeactivated') });
       fetchData();
     } catch (err: any) {

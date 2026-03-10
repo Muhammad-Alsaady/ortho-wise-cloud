@@ -35,13 +35,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserData = async (userId: string) => {
 
+    const ROLE_PRIORITY: Record<string, number> = {
+      superadmin: 4,
+      admin: 3,
+      doctor: 2,
+      reception: 1,
+    };
+
     const [profileRes, roleRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId),
     ]);
 
     if (profileRes.data) setProfile(profileRes.data as Profile);
-    if (roleRes.data) setRole(roleRes.data.role as UserRole["role"]);
+
+    // Pick the highest-privilege role from all role rows
+    if (roleRes.data && roleRes.data.length > 0) {
+      const topRole = roleRes.data.reduce((best, current) => {
+        return (ROLE_PRIORITY[current.role] ?? 0) > (ROLE_PRIORITY[best.role] ?? 0)
+          ? current
+          : best;
+      });
+      setRole(topRole.role as UserRole["role"]);
+    }
 
   };
 
