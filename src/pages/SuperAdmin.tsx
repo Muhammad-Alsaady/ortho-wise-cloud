@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Building2, Users, Edit, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { invokeManageUser } from '@/lib/api';
+import { callManageUser } from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,23 +43,40 @@ const SuperAdmin: React.FC = () => {
     defaultValues: { name: '', email: '', password: '', clinic_id: '' },
   });
 
+  // Use direct Supabase queries — no edge function needed for read/write on clinics/profiles
   const fetchClinics = async () => {
     try {
-      const data = await invokeManageUser({ action: 'list_clinics' });
-      setClinics(data);
+      const { data, error } = await supabase.from('clinics').select('*').order('name');
+      if (error) throw error;
+      setClinics(data || []);
     } catch (err: any) {
       console.error('fetchClinics error:', err);
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      toast({ title: 'Error loading clinics', description: err.message, variant: 'destructive' });
     }
   };
 
   const fetchUsers = async (filterClinicId?: string) => {
     try {
-      const data = await invokeManageUser({ action: 'list_users', clinic_id: filterClinicId || undefined });
-      setUsers(data);
+      let query = supabase.from('profiles').select('*').order('name');
+      if (filterClinicId) query = query.eq('clinic_id', filterClinicId);
+      const { data: profilesData, error: profilesError } = await query;
+      if (profilesError) throw profilesError;
+
+      const userIds = (profilesData || []).map((p: any) => p.user_id);
+      let rolesData: any[] = [];
+      if (userIds.length > 0) {
+        const { data } = await supabase.from('user_roles').select('user_id, role').in('user_id', userIds);
+        rolesData = data || [];
+      }
+
+      const merged = (profilesData || []).map((p: any) => ({
+        ...p,
+        user_roles: rolesData.filter((r: any) => r.user_id === p.user_id),
+      }));
+      setUsers(merged);
     } catch (err: any) {
       console.error('fetchUsers error:', err);
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      toast({ title: 'Error loading users', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -70,16 +88,20 @@ const SuperAdmin: React.FC = () => {
   const handleSaveClinic = async () => {
     setSaving(true);
     try {
-      // Strip empty license_expiry — DB expects a DATE value or null, not ""
       const payload = {
-        ...clinicForm,
+        name: clinicForm.name,
+        address: clinicForm.address || null,
+        phone: clinicForm.phone || null,
         license_expiry: clinicForm.license_expiry || null,
+        plan_type: clinicForm.plan_type || 'basic',
       };
       if (editingClinic) {
-        await invokeManageUser({ action: 'update_clinic', id: editingClinic.id, ...payload });
+        const { error } = await supabase.from('clinics').update(payload).eq('id', editingClinic.id);
+        if (error) throw error;
         toast({ title: 'Clinic updated' });
       } else {
-        await invokeManageUser({ action: 'create_clinic', ...payload });
+        const { error } = await supabase.from('clinics').insert(payload);
+        if (error) throw error;
         toast({ title: 'Clinic created' });
       }
       setClinicModal(false);
@@ -94,9 +116,10 @@ const SuperAdmin: React.FC = () => {
     }
   };
 
+  // create_user still goes through the edge function — needs auth.admin.createUser (service role)
   const handleCreateAdmin = async (values: z.infer<typeof adminSchema>) => {
     try {
-      await invokeManageUser({ action: 'create_user', ...values, role: 'admin' });
+      await callManageUser('create_user', { ...values, role: 'admin' });
       toast({ title: 'Admin user created successfully' });
       setUserModal(false);
       adminFormMethods.reset();
