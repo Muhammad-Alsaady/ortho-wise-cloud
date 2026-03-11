@@ -100,15 +100,22 @@ const AdminPanel: React.FC = () => {
       setDoctors(docs);
       setReceptionists(recs);
     } catch (err: any) {
-      console.error('fetchData error:', err);
+      console.error('[AdminPanel] fetchData users error:', err);
+      toast({ title: 'Error loading users', description: err?.message ?? 'Failed to load users', variant: 'destructive' });
     }
 
-    const { data: txs } = await supabase
-      .from('treatments')
-      .select('*')
-      .eq('clinic_id', effectiveClinicId)
-      .order('name');
-    setTreatments(txs || []);
+    try {
+      const { data: txs, error } = await supabase
+        .from('treatments')
+        .select('*')
+        .eq('clinic_id', effectiveClinicId)
+        .order('name');
+      if (error) console.error('[AdminPanel] treatments fetch error:', error);
+      setTreatments(txs || []);
+    } catch (err: any) {
+      console.error('[AdminPanel] treatments exception:', err);
+    }
+
     setLoading(false);
   };
 
@@ -124,18 +131,23 @@ const AdminPanel: React.FC = () => {
 
   const handleSaveTreatment = async () => {
     if (!effectiveClinicId || !treatmentName) return;
-    if (editingTreatment) {
-      const { error } = await supabase.from('treatments').update({ name: treatmentName, price: Number(treatmentPrice) || 0 }).eq('id', editingTreatment.id);
-      if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
-    } else {
-      const { error } = await supabase.from('treatments').insert({ clinic_id: effectiveClinicId, name: treatmentName, price: Number(treatmentPrice) || 0 });
-      if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    try {
+      if (editingTreatment) {
+        const { error } = await supabase.from('treatments').update({ name: treatmentName, price: Number(treatmentPrice) || 0 }).eq('id', editingTreatment.id);
+        if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+      } else {
+        const { error } = await supabase.from('treatments').insert({ clinic_id: effectiveClinicId, name: treatmentName, price: Number(treatmentPrice) || 0 });
+        if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+      }
+      setTreatmentModal(false);
+      setEditingTreatment(null);
+      setTreatmentName('');
+      setTreatmentPrice('');
+      fetchData();
+    } catch (err: any) {
+      console.error('[AdminPanel] handleSaveTreatment error:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to save treatment', variant: 'destructive' });
     }
-    setTreatmentModal(false);
-    setEditingTreatment(null);
-    setTreatmentName('');
-    setTreatmentPrice('');
-    fetchData();
   };
 
   const openEditTreatment = (tx: any) => {
@@ -148,14 +160,20 @@ const AdminPanel: React.FC = () => {
   const handleDeleteTreatment = async () => {
     if (!deleteTreatmentTarget) return;
     setDeleteTreatmentLoading(true);
-    const { error } = await supabase.from('treatments').delete().eq('id', deleteTreatmentTarget.id);
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
-      fetchData();
+    try {
+      const { error } = await supabase.from('treatments').delete().eq('id', deleteTreatmentTarget.id);
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        fetchData();
+      }
+    } catch (err: any) {
+      console.error('[AdminPanel] handleDeleteTreatment error:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to delete', variant: 'destructive' });
+    } finally {
+      setDeleteTreatmentLoading(false);
+      setDeleteTreatmentTarget(null);
     }
-    setDeleteTreatmentLoading(false);
-    setDeleteTreatmentTarget(null);
   };
 
   const handleCreateUser = async (values: z.infer<typeof userSchema>) => {
