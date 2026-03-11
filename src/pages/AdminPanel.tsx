@@ -27,7 +27,7 @@ const userSchema = z.object({
 });
 
 const AdminPanel: React.FC = () => {
-  const { clinicId } = useAuth();
+  const { clinicId, role } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
 
@@ -36,6 +36,13 @@ const AdminPanel: React.FC = () => {
   const [treatments, setTreatments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [backupLoading, setBackupLoading] = useState(false);
+
+  // Superadmin clinic selection
+  const [clinics, setClinics] = useState<any[]>([]);
+  const [selectedClinicId, setSelectedClinicId] = useState<string>('');
+  
+  // Use selected clinic for superadmin, or user's clinic for regular admin
+  const effectiveClinicId = role === 'superadmin' ? selectedClinicId : clinicId;
 
   // Treatment modal
   const [treatmentModal, setTreatmentModal] = useState(false);
@@ -58,12 +65,29 @@ const AdminPanel: React.FC = () => {
   const [deactivateTarget, setDeactivateTarget] = useState<any>(null);
   const [deactivateLoading, setDeactivateLoading] = useState(false);
 
+  // Fetch clinics for superadmin
+  const fetchClinics = async () => {
+    if (role !== 'superadmin') return;
+    try {
+      const { data, error } = await supabase.from('clinics').select('*').order('name');
+      if (error) throw error;
+      setClinics(data || []);
+      // Auto-select first clinic if none selected
+      if (!selectedClinicId && data && data.length > 0) {
+        setSelectedClinicId(data[0].id);
+      }
+    } catch (err: any) {
+      console.error('fetchClinics error:', err);
+      toast({ title: 'Error loading clinics', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const fetchData = async () => {
-    if (!clinicId) return;
+    if (!effectiveClinicId) return;
     setLoading(true);
 
     try {
-      const profiles = await callManageUser('list_users', { clinic_id: clinicId });
+      const profiles = await callManageUser('list_users', { clinic_id: effectiveClinicId });
       const docs: any[] = [];
       const recs: any[] = [];
       (profiles || []).forEach((p: any) => {
@@ -82,21 +106,29 @@ const AdminPanel: React.FC = () => {
     const { data: txs } = await supabase
       .from('treatments')
       .select('*')
-      .eq('clinic_id', clinicId)
+      .eq('clinic_id', effectiveClinicId)
       .order('name');
     setTreatments(txs || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [clinicId]);
+  useEffect(() => { 
+    if (role === 'superadmin') {
+      fetchClinics();
+    }
+  }, [role]);
+  
+  useEffect(() => { 
+    fetchData(); 
+  }, [effectiveClinicId]);
 
   const handleSaveTreatment = async () => {
-    if (!clinicId || !treatmentName) return;
+    if (!effectiveClinicId || !treatmentName) return;
     if (editingTreatment) {
       const { error } = await supabase.from('treatments').update({ name: treatmentName, price: Number(treatmentPrice) || 0 }).eq('id', editingTreatment.id);
       if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     } else {
-      const { error } = await supabase.from('treatments').insert({ clinic_id: clinicId, name: treatmentName, price: Number(treatmentPrice) || 0 });
+      const { error } = await supabase.from('treatments').insert({ clinic_id: effectiveClinicId, name: treatmentName, price: Number(treatmentPrice) || 0 });
       if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     }
     setTreatmentModal(false);
@@ -127,13 +159,13 @@ const AdminPanel: React.FC = () => {
   };
 
   const handleCreateUser = async (values: z.infer<typeof userSchema>) => {
-    if (!clinicId) return;
+    if (!effectiveClinicId) return;
     try {
       await callManageUser('create_user', {
         email: values.email,
         password: values.password,
         name: values.name,
-        clinic_id: clinicId,
+        clinic_id: effectiveClinicId,
         role: values.role,
       });
       toast({ title: `${values.role === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully` });
@@ -186,23 +218,52 @@ const AdminPanel: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {clinicId && (
+      {effectiveClinicId && (
         <Card>
           <CardContent className="flex items-center gap-3 py-3">
             <span className="text-sm font-medium text-muted-foreground">Tenant ID:</span>
-            <code className="text-sm bg-muted px-2 py-1 rounded font-mono">{clinicId}</code>
+            <code className="text-sm bg-muted px-2 py-1 rounded font-mono">{effectiveClinicId}</code>
           </CardContent>
         </Card>
       )}
 
-      <Tabs defaultValue="treatments">
-        <TabsList>
-          <TabsTrigger value="treatments">{t('admin.treatments')}</TabsTrigger>
-          <TabsTrigger value="doctors">{t('admin.doctors')}</TabsTrigger>
-          <TabsTrigger value="receptionists">{t('admin.receptionists')}</TabsTrigger>
-          <TabsTrigger value="audit">{t('admin.auditLogs')}</TabsTrigger>
-          <TabsTrigger value="backup">{t('admin.backup')}</TabsTrigger>
-        </TabsList>
+      {role === 'superadmin' && (
+        <Card>
+          <CardContent className="py-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Select Clinic:</span>
+              <Select value={selectedClinicId} onValueChange={setSelectedClinicId}>
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue placeholder="Choose a clinic to manage" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clinics.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} <span className="text-muted-foreground ms-2 text-xs">({c.id.slice(0, 8)}…)</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!effectiveClinicId && role === 'superadmin' ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-muted-foreground">Please select a clinic to manage its data.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Tabs defaultValue="treatments">
+          <TabsList>
+            <TabsTrigger value="treatments">{t('admin.treatments')}</TabsTrigger>
+            <TabsTrigger value="doctors">{t('admin.doctors')}</TabsTrigger>
+            <TabsTrigger value="receptionists">{t('admin.receptionists')}</TabsTrigger>
+            <TabsTrigger value="audit">{t('admin.auditLogs')}</TabsTrigger>
+            <TabsTrigger value="backup">{t('admin.backup')}</TabsTrigger>
+          </TabsList>
 
         <TabsContent value="treatments" className="mt-4">
           <Card>
@@ -327,6 +388,7 @@ const AdminPanel: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      )}
 
       {/* Treatment Modal */}
       <Dialog open={treatmentModal} onOpenChange={setTreatmentModal}>

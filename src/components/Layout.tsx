@@ -20,10 +20,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       items.push({ path: '/', label: t('nav.reception'), icon: CalendarDays });
       items.push({ path: '/patients', label: t('nav.patients'), icon: Users });
     }
-    if (role === 'doctor') {
+    if (role === 'doctor' || role === 'admin_doctor') {
       items.push({ path: '/doctor-queue', label: t('nav.doctorQueue'), icon: Stethoscope });
+      items.push({ path: '/patients', label: t('nav.patients'), icon: Users });
     }
-    if (role === 'admin' || role === 'superadmin') {
+    if (role === 'admin' || role === 'superadmin' || role === 'admin_doctor') {
       items.push({ path: '/reports', label: t('nav.reports'), icon: BarChart3 });
       items.push({ path: '/admin', label: t('nav.admin'), icon: Settings });
     }

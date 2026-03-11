@@ -48,21 +48,21 @@ const AppRoutes = () => {
           <Route
             path="/"
             element={
-              role === "doctor"
+              role === "doctor" || role === "admin_doctor"
                 ? <Navigate to="/doctor-queue" replace />
                 : <ReceptionDashboard />
             }
           />
 
-          {/* Reception + Admin + Superadmin */}
-          {(role === "reception" || role === "admin" || role === "superadmin") && (
+          {/* Reception + Admin + Superadmin + Doctor + AdminDoctor */}
+          {(role === "reception" || role === "admin" || role === "superadmin" || role === "doctor" || role === "admin_doctor") && (
             <>
               <Route path="/patients" element={<PatientManagement />} />
             </>
           )}
 
           {/* Doctor routes */}
-          {role === "doctor" && (
+          {(role === "doctor" || role === "admin_doctor") && (
             <>
               <Route path="/doctor-queue" element={<DoctorQueue />} />
             </>
@@ -73,7 +73,7 @@ const AppRoutes = () => {
           <Route path="/profile" element={<Profile />} />
 
           {/* Admin routes */}
-          {(role === "admin" || role === "superadmin") && (
+          {(role === "admin" || role === "superadmin" || role === "admin_doctor") && (
             <>
               <Route path="/reports" element={<Reports />} />
               <Route path="/admin" element={<AdminPanel />} />

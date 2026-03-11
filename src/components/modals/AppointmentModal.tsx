@@ -61,6 +61,8 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
 
   // Appointment fields
   const [doctors, setDoctors] = useState<any[]>([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
+  const [doctorsError, setDoctorsError] = useState<string | null>(null);
   const [doctorId, setDoctorId] = useState('');
   const [date, setDate] = useState<Date>(new Date());
   const [time, setTime] = useState('');
@@ -90,15 +92,61 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
   // Load doctors once
   useEffect(() => {
     if (!clinicId) return;
-    supabase.from('profiles').select('id, name, user_id').eq('clinic_id', clinicId).then(async ({ data }) => {
-      if (!data) return;
-      const doctorProfiles: any[] = [];
-      for (const p of data) {
-        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', p.user_id);
-        if (roles?.some(r => r.role === 'doctor')) doctorProfiles.push(p);
+    
+    const fetchDoctors = async () => {
+      setDoctorsLoading(true);
+      setDoctorsError(null);
+      
+      try {
+        // First get all profiles in the clinic
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name, user_id')
+          .eq('clinic_id', clinicId);
+          
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+          setDoctorsError(`Failed to load profiles: ${profilesError.message}`);
+          return;
+        }
+        
+        if (!profilesData || profilesData.length === 0) {
+          setDoctorsError('No users found in this clinic');
+          return;
+        }
+        
+        // Then get roles for these users
+        const userIds = profilesData.map(p => p.user_id);
+        const { data: rolesData, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds)
+          .eq('role', 'doctor');
+          
+        if (rolesError) {
+          console.error('Error fetching roles:', rolesError);
+          setDoctorsError(`Failed to load doctor roles: ${rolesError.message}`);
+          return;
+        }
+        
+        // Filter profiles to only include doctors
+        const doctorUserIds = new Set(rolesData?.map(r => r.user_id) || []);
+        const doctorProfiles = profilesData.filter(p => doctorUserIds.has(p.user_id));
+        
+        setDoctors(doctorProfiles);
+        
+        if (doctorProfiles.length === 0) {
+          setDoctorsError('No doctors found in this clinic');
+        }
+      } catch (err: any) {
+        console.error('Unexpected error fetching doctors:', err);
+        setDoctorsError('Unexpected error loading doctors');
+      } finally {
+        setDoctorsLoading(false);
       }
-      setDoctors(doctorProfiles);
-    });
+    };
+    
+    fetchDoctors();
   }, [clinicId]);
 
   // Phone lookup with debounce — auto-populates patient fields
@@ -350,14 +398,19 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
             {/* Doctor */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">{t('reception.doctor')} *</label>
-              <Select value={doctorId} onValueChange={setDoctorId}>
+              <Select value={doctorId} onValueChange={setDoctorId} disabled={doctorsLoading}>
                 <SelectTrigger className={cn(errors.doctorId && 'border-destructive ring-destructive/30 ring-2')}>
-                  <SelectValue placeholder={t('common.select')} />
+                  <SelectValue placeholder={doctorsLoading ? "Loading doctors..." : t('common.select')} />
                 </SelectTrigger>
                 <SelectContent>
                   {doctors.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {doctorsLoading && <p className="text-xs text-muted-foreground">Loading doctors...</p>}
+              {doctorsError && <p className="text-xs text-destructive">{doctorsError}</p>}
+              {!doctorsLoading && !doctorsError && doctors.length === 0 && (
+                <p className="text-xs text-amber-600">No doctors available in this clinic</p>
+              )}
               {errors.doctorId && <p className="text-xs text-destructive">{errors.doctorId}</p>}
             </div>
 
