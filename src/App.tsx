@@ -23,7 +23,7 @@ import Reports from "@/pages/Reports";
 import SuperAdmin from "@/pages/SuperAdmin";
 import Profile from "@/pages/Profile";
 
-import { supabase } from "./supabaseClient";
+import { supabase } from "./integrations/supabase/client";
 
 const queryClient = new QueryClient();
 
