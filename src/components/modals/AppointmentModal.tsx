@@ -399,7 +399,7 @@ useEffect(() => {
                   <SelectValue placeholder={doctorsLoading ? "Loading doctors..." : t('common.select')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {doctors.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                  {doctors?.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               {doctorsLoading && <p className="text-xs text-muted-foreground">Loading doctors...</p>}
