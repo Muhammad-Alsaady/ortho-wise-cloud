@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Edit, Download, UserPlus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AuditLogs from '@/components/AuditLogs';
-import { callManageUser } from '@/lib/api';
+import { callManageUser, checkAuthError } from '@/lib/api';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -110,7 +110,10 @@ const AdminPanel: React.FC = () => {
         .select('*')
         .eq('clinic_id', effectiveClinicId)
         .order('name');
-      if (error) console.error('[AdminPanel] treatments fetch error:', error);
+      if (error) {
+        if (checkAuthError(error, 'AdminPanel.treatments')) return;
+        console.error('[AdminPanel] treatments fetch error:', error);
+      }
       setTreatments(txs || []);
     } catch (err: any) {
       console.error('[AdminPanel] treatments exception:', err);

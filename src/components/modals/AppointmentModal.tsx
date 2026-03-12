@@ -14,6 +14,7 @@ import { CalendarIcon, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { checkAuthError } from '@/lib/api';
 
 const TIME_SLOTS: string[] = [];
 for (let h = 9; h < 24; h++) {
@@ -91,31 +92,38 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
 
   // Load doctors once
   useEffect(() => {
-    if (!clinicId) return;
+    if (!clinicId) {
+      console.warn('[AppointmentModal] clinicId is null — cannot fetch doctors');
+      setDoctorsError('Clinic not loaded yet. Try closing and reopening this dialog.');
+      return;
+    }
     
     const fetchDoctors = async () => {
       setDoctorsLoading(true);
       setDoctorsError(null);
+      console.log('[AppointmentModal] Fetching doctors for clinicId:', clinicId);
       
       try {
-        // First get all profiles in the clinic
+        // Get all profiles in the clinic
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
           .select('id, name, user_id')
           .eq('clinic_id', clinicId);
           
         if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
+          if (checkAuthError(profilesError, 'AppointmentModal.profiles')) return;
+          console.error('[AppointmentModal] Error fetching profiles:', profilesError);
           setDoctorsError(`Failed to load profiles: ${profilesError.message}`);
           return;
         }
         
         if (!profilesData || profilesData.length === 0) {
+          console.warn('[AppointmentModal] No profiles found for clinic:', clinicId);
           setDoctorsError('No users found in this clinic');
           return;
         }
         
-        // Then get roles for these users
+        // Batch fetch doctor roles
         const userIds = profilesData.map(p => p.user_id);
         const { data: rolesData, error: rolesError } = await supabase
           .from('user_roles')
@@ -124,22 +132,23 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
           .eq('role', 'doctor');
           
         if (rolesError) {
-          console.error('Error fetching roles:', rolesError);
+          if (checkAuthError(rolesError, 'AppointmentModal.roles')) return;
+          console.error('[AppointmentModal] Error fetching roles:', rolesError);
           setDoctorsError(`Failed to load doctor roles: ${rolesError.message}`);
           return;
         }
         
-        // Filter profiles to only include doctors
         const doctorUserIds = new Set(rolesData?.map(r => r.user_id) || []);
         const doctorProfiles = profilesData.filter(p => doctorUserIds.has(p.user_id));
         
+        console.log('[AppointmentModal] Found', doctorProfiles.length, 'doctors');
         setDoctors(doctorProfiles);
         
         if (doctorProfiles.length === 0) {
           setDoctorsError('No doctors found in this clinic');
         }
       } catch (err: any) {
-        console.error('Unexpected error fetching doctors:', err);
+        console.error('[AppointmentModal] Unexpected error fetching doctors:', err);
         setDoctorsError('Unexpected error loading doctors');
       } finally {
         setDoctorsLoading(false);

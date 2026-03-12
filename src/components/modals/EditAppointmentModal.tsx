@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { CalendarIcon, Plus, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { checkAuthError } from '@/lib/api';
 
 const TIME_SLOTS: string[] = [];
 for (let h = 9; h < 24; h++) {
@@ -63,26 +64,42 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   const [nextTime, setNextTime] = useState('');
   const [schedulingNext, setSchedulingNext] = useState(false);
 
-  // Load doctors
+  // Load doctors (batch query instead of sequential per-user loop)
   useEffect(() => {
     if (!clinicId) return;
-    supabase.from('profiles').select('id, name, user_id').eq('clinic_id', clinicId).then(async ({ data }) => {
-      if (!data) return;
-      const doctorProfiles: any[] = [];
-      for (const p of data) {
-        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', p.user_id);
-        if (roles?.some(r => r.role === 'doctor')) doctorProfiles.push(p);
+    const fetchDoctors = async () => {
+      try {
+        const { data: profilesData, error: pErr } = await supabase
+          .from('profiles')
+          .select('id, name, user_id')
+          .eq('clinic_id', clinicId);
+        if (pErr) { checkAuthError(pErr, 'EditAppt.profiles'); return; }
+        if (!profilesData || profilesData.length === 0) return;
+
+        const userIds = profilesData.map(p => p.user_id);
+        const { data: rolesData, error: rErr } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds)
+          .eq('role', 'doctor');
+        if (rErr) { checkAuthError(rErr, 'EditAppt.roles'); return; }
+
+        const doctorUserIds = new Set(rolesData?.map(r => r.user_id) || []);
+        setDoctors(profilesData.filter(p => doctorUserIds.has(p.user_id)));
+      } catch (err) {
+        console.error('[EditAppointmentModal] fetchDoctors error:', err);
       }
-      setDoctors(doctorProfiles);
-    });
+    };
+    fetchDoctors();
   }, [clinicId]);
 
   // Load treatments catalog
   useEffect(() => {
     if (!clinicId) return;
-    supabase.from('treatments').select('id, name, price').eq('clinic_id', clinicId).then(({ data }) => {
+    supabase.from('treatments').select('id, name, price').eq('clinic_id', clinicId).then(({ data, error }) => {
+      if (error) { checkAuthError(error, 'EditAppt.treatments'); return; }
       setTreatments(data || []);
-    });
+    }).catch(err => console.error('[EditAppt] treatments exception:', err));
   }, [clinicId]);
 
   // Initialize appointment fields
@@ -97,38 +114,46 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   const fetchVisitData = useCallback(async () => {
     if (!appointment) return;
 
-    const { data: visits } = await supabase
-      .from('visits')
-      .select('id')
-      .eq('appointment_id', appointment.id);
+    try {
+      const { data: visits, error: vErr } = await supabase
+        .from('visits')
+        .select('id')
+        .eq('appointment_id', appointment.id);
 
-    if (!visits || visits.length === 0) {
-      setVisitId(null);
-      setPlans([]);
-      setPayments([]);
-      return;
-    }
+      if (vErr) { checkAuthError(vErr, 'EditAppt.visits'); return; }
 
-    const vid = visits[0].id;
-    setVisitId(vid);
+      if (!visits || visits.length === 0) {
+        setVisitId(null);
+        setPlans([]);
+        setPayments([]);
+        return;
+      }
 
-    const { data: plansData } = await supabase
-      .from('treatment_plans')
-      .select('*, treatment:treatments(name)')
-      .eq('visit_id', vid);
+      const vid = visits[0].id;
+      setVisitId(vid);
 
-    setPlans(plansData || []);
+      const { data: plansData, error: plErr } = await supabase
+        .from('treatment_plans')
+        .select('*, treatment:treatments(name)')
+        .eq('visit_id', vid);
 
-    if (plansData && plansData.length > 0) {
-      const planIds = plansData.map(p => p.id);
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('*')
-        .in('treatment_plan_id', planIds)
-        .order('created_at', { ascending: false });
-      setPayments(paymentsData || []);
-    } else {
-      setPayments([]);
+      if (plErr) checkAuthError(plErr, 'EditAppt.plans');
+      setPlans(plansData || []);
+
+      if (plansData && plansData.length > 0) {
+        const planIds = plansData.map(p => p.id);
+        const { data: paymentsData, error: payErr } = await supabase
+          .from('payments')
+          .select('*')
+          .in('treatment_plan_id', planIds)
+          .order('created_at', { ascending: false });
+        if (payErr) checkAuthError(payErr, 'EditAppt.payments');
+        setPayments(paymentsData || []);
+      } else {
+        setPayments([]);
+      }
+    } catch (err) {
+      console.error('[EditAppointmentModal] fetchVisitData error:', err);
     }
   }, [appointment]);
 

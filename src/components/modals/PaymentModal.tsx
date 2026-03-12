@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { checkAuthError } from '@/lib/api';
 
 interface Props {
   open: boolean;
@@ -29,29 +30,36 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
   const [saving, setSaving] = useState(false);
 
   const fetchData = async () => {
-    const { data: visits } = await supabase
-      .from('visits')
-      .select('id')
-      .eq('appointment_id', appointment.id);
+    try {
+      const { data: visits, error: vErr } = await supabase
+        .from('visits')
+        .select('id')
+        .eq('appointment_id', appointment.id);
 
-    if (!visits || visits.length === 0) return;
+      if (vErr) { checkAuthError(vErr, 'PaymentModal.visits'); return; }
+      if (!visits || visits.length === 0) return;
 
-    const visitIds = visits.map(v => v.id);
-    const { data: plansData } = await supabase
-      .from('treatment_plans')
-      .select('*, treatment:treatments(name)')
-      .in('visit_id', visitIds);
+      const visitIds = visits.map(v => v.id);
+      const { data: plansData, error: plErr } = await supabase
+        .from('treatment_plans')
+        .select('*, treatment:treatments(name)')
+        .in('visit_id', visitIds);
 
-    setPlans(plansData || []);
+      if (plErr) checkAuthError(plErr, 'PaymentModal.plans');
+      setPlans(plansData || []);
 
-    if (plansData && plansData.length > 0) {
-      const planIds = plansData.map(p => p.id);
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('*')
-        .in('treatment_plan_id', planIds)
-        .order('created_at', { ascending: false });
-      setPayments(paymentsData || []);
+      if (plansData && plansData.length > 0) {
+        const planIds = plansData.map(p => p.id);
+        const { data: paymentsData, error: payErr } = await supabase
+          .from('payments')
+          .select('*')
+          .in('treatment_plan_id', planIds)
+          .order('created_at', { ascending: false });
+        if (payErr) checkAuthError(payErr, 'PaymentModal.payments');
+        setPayments(paymentsData || []);
+      }
+    } catch (err) {
+      console.error('[PaymentModal] fetchData exception:', err);
     }
   };
 

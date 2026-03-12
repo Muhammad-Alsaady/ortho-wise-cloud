@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { checkAuthError } from '@/lib/api';
 
 const AuditLogs: React.FC = () => {
   const { clinicId } = useAuth();
@@ -22,7 +23,7 @@ const AuditLogs: React.FC = () => {
       .order('created_at', { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
-        if (error) console.error('[AuditLogs] fetch error:', error);
+        if (error) { checkAuthError(error, 'AuditLogs'); console.error('[AuditLogs] fetch error:', error); }
         setLogs(data || []);
         setLoading(false);
       })

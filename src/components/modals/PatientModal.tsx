@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { checkAuthError } from '@/lib/api';
 
 interface Props {
   open: boolean;
@@ -28,18 +29,32 @@ const PatientModal: React.FC<Props> = ({ open, patient, onClose }) => {
     if (!clinicId || !name) return;
     setSaving(true);
 
-    const payload = { name, phone, age: age ? Number(age) : null, notes };
+    try {
+      const payload = { name, phone, age: age ? Number(age) : null, notes };
 
-    if (patient) {
-      const { error } = await supabase.from('patients').update(payload).eq('id', patient.id);
-      if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      else onClose();
-    } else {
-      const { error } = await supabase.from('patients').insert({ ...payload, clinic_id: clinicId });
-      if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      else onClose();
+      if (patient) {
+        const { error } = await supabase.from('patients').update(payload).eq('id', patient.id);
+        if (error) {
+          if (checkAuthError(error, 'PatientModal.update')) return;
+          toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } else {
+          onClose();
+        }
+      } else {
+        const { error } = await supabase.from('patients').insert({ ...payload, clinic_id: clinicId });
+        if (error) {
+          if (checkAuthError(error, 'PatientModal.insert')) return;
+          toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } else {
+          onClose();
+        }
+      }
+    } catch (err: any) {
+      console.error('[PatientModal] handleSave error:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Save failed', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (

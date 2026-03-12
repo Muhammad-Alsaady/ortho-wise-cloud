@@ -17,6 +17,7 @@ import AppointmentModal from '@/components/modals/AppointmentModal';
 import EditAppointmentModal from '@/components/modals/EditAppointmentModal';
 import PaymentModal from '@/components/modals/PaymentModal';
 import { useToast } from '@/hooks/use-toast';
+import { checkAuthError } from '@/lib/api';
 
 const statusColors: Record<string, string> = {
   Booked: 'bg-blue-100 text-blue-800',
@@ -58,6 +59,7 @@ const ReceptionDashboard: React.FC = () => {
         .order('appointment_time', { ascending: true });
 
       if (error) {
+        if (checkAuthError(error, 'Reception.fetchAppointments')) return;
         console.error('[ReceptionDashboard] fetchAppointments error:', error);
         setAppointments([]);
         setLoading(false);

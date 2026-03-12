@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Building2, Users, Edit, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { callManageUser } from '@/lib/api';
+import { callManageUser, checkAuthError } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -47,7 +47,10 @@ const SuperAdmin: React.FC = () => {
   const fetchClinics = async () => {
     try {
       const { data, error } = await supabase.from('clinics').select('*').order('name');
-      if (error) throw error;
+      if (error) {
+        if (checkAuthError(error, 'SuperAdmin.fetchClinics')) return;
+        throw error;
+      }
       setClinics(data || []);
     } catch (err: any) {
       console.error('fetchClinics error:', err);
@@ -60,7 +63,10 @@ const SuperAdmin: React.FC = () => {
       let query = supabase.from('profiles').select('*').order('name');
       if (filterClinicId) query = query.eq('clinic_id', filterClinicId);
       const { data: profilesData, error: profilesError } = await query;
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        if (checkAuthError(profilesError, 'SuperAdmin.fetchUsers')) return;
+        throw profilesError;
+      }
 
       const userIds = (profilesData || []).map((p: any) => p.user_id);
       let rolesData: any[] = [];

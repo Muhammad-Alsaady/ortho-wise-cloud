@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { checkAuthError } from '@/lib/api';
 
 interface Props {
   open: boolean;
@@ -26,14 +27,22 @@ const PatientProfileModal: React.FC<Props> = ({ open, patient, onClose }) => {
       .eq('patient_id', patient.id)
       .order('appointment_date', { ascending: false })
       .limit(20)
-      .then(({ data }) => setAppointments(data || []));
+      .then(({ data, error }) => {
+        if (error) { checkAuthError(error, 'PatientProfile.appointments'); return; }
+        setAppointments(data || []);
+      })
+      .catch(err => console.error('[PatientProfile] appointments exception:', err));
 
     supabase
       .from('patient_balances')
       .select('*')
       .eq('patient_id', patient.id)
-      .single()
-      .then(({ data }) => setBalance(data));
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) { checkAuthError(error, 'PatientProfile.balance'); return; }
+        setBalance(data);
+      })
+      .catch(err => console.error('[PatientProfile] balance exception:', err));
   }, [patient]);
 
   return (

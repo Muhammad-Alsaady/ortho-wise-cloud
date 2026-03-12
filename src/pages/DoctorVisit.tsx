@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Save, CheckCircle, Upload, ArrowLeft, Trash2 } from 'lucide-react';
+import { checkAuthError } from '@/lib/api';
 
 const DoctorVisit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +47,7 @@ const DoctorVisit: React.FC = () => {
         .single();
 
       if (visitError) {
+        if (checkAuthError(visitError, 'DoctorVisit.fetchVisit')) return;
         console.error('[DoctorVisit] fetchVisit error:', visitError);
         toast({ title: 'Error', description: visitError.message, variant: 'destructive' });
         setLoading(false);

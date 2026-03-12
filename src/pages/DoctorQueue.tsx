@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { UserCheck, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { checkAuthError } from '@/lib/api';
 
 const DoctorQueue: React.FC = () => {
   const { profile, clinicId } = useAuth();
@@ -35,6 +36,7 @@ const DoctorQueue: React.FC = () => {
         .order('appointment_time', { ascending: true });
 
       if (error) {
+        if (checkAuthError(error, 'DoctorQueue.fetchQueue')) return;
         console.error('[DoctorQueue] fetchQueue error:', error);
         toast({ title: 'Error loading queue', description: error.message, variant: 'destructive' });
       } else {

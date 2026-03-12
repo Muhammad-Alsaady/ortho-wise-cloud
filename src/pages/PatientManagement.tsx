@@ -10,6 +10,7 @@ import { Search, Plus, Edit, Eye, History, ChevronLeft, ChevronRight } from 'luc
 import PatientModal from '@/components/modals/PatientModal';
 import PatientProfileModal from '@/components/modals/PatientProfileModal';
 import PatientHistoryModal from '@/components/modals/PatientHistoryModal';
+import { checkAuthError } from '@/lib/api';
 
 const PAGE_SIZE = 20;
 
@@ -47,6 +48,7 @@ const PatientManagement: React.FC = () => {
 
       const { data, count, error } = await query;
       if (error) {
+        if (checkAuthError(error, 'PatientManagement.fetchPatients')) return;
         console.error('[PatientManagement] fetchPatients error:', error);
       }
       setPatients(data || []);

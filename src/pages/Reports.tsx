@@ -14,6 +14,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { CalendarIcon, TrendingUp, DollarSign, Activity, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { checkAuthError } from '@/lib/api';
 
 const COLORS = ['hsl(174, 62%, 38%)', 'hsl(210, 30%, 50%)', 'hsl(38, 92%, 50%)', 'hsl(0, 72%, 51%)', 'hsl(142, 71%, 45%)', 'hsl(270, 50%, 50%)'];
 
@@ -74,11 +75,11 @@ const Reports: React.FC = () => {
         supabase.from('patient_balances').select('*').eq('clinic_id', clinicId).gt('balance', 0).order('balance', { ascending: false }),
       ]);
 
-      if (drRes.error) console.error('[Reports] daily_revenue error:', drRes.error);
-      if (mrRes.error) console.error('[Reports] monthly_revenue error:', mrRes.error);
-      if (dpRes.error) console.error('[Reports] doctor_performance error:', dpRes.error);
-      if (tpRes.error) console.error('[Reports] treatment_popularity error:', tpRes.error);
-      if (pbRes.error) console.error('[Reports] patient_balances error:', pbRes.error);
+      if (drRes.error) { if (checkAuthError(drRes.error, 'Reports.daily_revenue')) return; console.error('[Reports] daily_revenue error:', drRes.error); }
+      if (mrRes.error) { if (checkAuthError(mrRes.error, 'Reports.monthly_revenue')) return; console.error('[Reports] monthly_revenue error:', mrRes.error); }
+      if (dpRes.error) { if (checkAuthError(dpRes.error, 'Reports.doctor_performance')) return; console.error('[Reports] doctor_performance error:', dpRes.error); }
+      if (tpRes.error) { if (checkAuthError(tpRes.error, 'Reports.treatment_popularity')) return; console.error('[Reports] treatment_popularity error:', tpRes.error); }
+      if (pbRes.error) { if (checkAuthError(pbRes.error, 'Reports.patient_balances')) return; console.error('[Reports] patient_balances error:', pbRes.error); }
 
       setDailyRevenue(drRes.data || []);
       setMonthlyRevenue(mrRes.data || []);

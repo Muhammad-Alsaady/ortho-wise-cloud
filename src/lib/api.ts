@@ -1,22 +1,56 @@
 import { supabase } from '@/integrations/supabase/client';
 
+// ─── Auth-error detection ────────────────────────────────────────────
+
 /** Check if an error looks like an auth/JWT problem */
 export const isAuthError = (err: any): boolean => {
   const msg = String(err?.message || err || '').toLowerCase();
-  return /jwt|token|unauthorized|401|auth|not authenticated/i.test(msg);
+  const code = String(err?.code || '');
+  return (
+    /jwt|invalid.?token|token.?expired|unauthorized|not authenticated|session.?expired/i.test(msg) ||
+    msg.includes('401') ||
+    code === 'PGRST301'
+  );
 };
+
+// Guard to prevent multiple simultaneous logouts
+let _loggingOut = false;
 
 /** Force-clear the session and redirect to login */
 export const forceLogout = async () => {
+  if (_loggingOut) return;
+  _loggingOut = true;
+
+  // ALWAYS clear localStorage first — even if signOut hangs
   try {
-    await supabase.auth.signOut();
-  } catch {
-    // Manual cleanup if signOut itself fails
     Object.keys(localStorage).forEach((k) => {
       if (k.startsWith('sb-')) localStorage.removeItem(k);
     });
-  }
+  } catch { /* ignore */ }
+
+  // Best-effort signOut (may already be invalid)
+  try {
+    await supabase.auth.signOut();
+  } catch { /* ignore */ }
+
   window.location.replace('/');
+};
+
+// ─── Query helpers ───────────────────────────────────────────────────
+
+/**
+ * Check a Supabase error and auto-logout if auth-related.
+ * Returns true if it was an auth error (caller should abort).
+ */
+export const checkAuthError = (error: any, context?: string): boolean => {
+  if (!error) return false;
+  console.error(`[${context || 'DB'}]`, error.message || error);
+  if (isAuthError(error)) {
+    console.error(`[${context || 'DB'}] Auth error detected — forcing logout`);
+    forceLogout();
+    return true;
+  }
+  return false;
 };
 
 /**
@@ -37,14 +71,11 @@ export const safeAsync = async <T>(fn: () => Promise<T>): Promise<T> => {
 /** Turn a Supabase { error } response into a thrown Error */
 export const handleSupabaseError = (error: any, context?: string) => {
   if (!error) return;
-  const msg = error.message || 'Unknown database error';
-  console.error(`[${context || 'supabase'}]`, msg);
-  if (isAuthError(error)) {
-    forceLogout();
-    return;
-  }
-  throw new Error(msg);
+  if (checkAuthError(error, context)) return;
+  throw new Error(error.message || 'Unknown database error');
 };
+
+// ─── Edge Function helper ────────────────────────────────────────────
 
 /**
  * Reusable helper for calling the manage-user Edge Function.
@@ -53,7 +84,10 @@ export const handleSupabaseError = (error: any, context?: string) => {
  */
 export const callManageUser = async (action: string, payload: Record<string, any> = {}) => {
   const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData.session) throw new Error('Not authenticated. Please log in again.');
+  if (!sessionData.session) {
+    await forceLogout();
+    throw new Error('Not authenticated. Please log in again.');
+  }
 
   const { data, error } = await supabase.functions.invoke('manage-user', {
     body: { action, ...payload },
@@ -63,7 +97,6 @@ export const callManageUser = async (action: string, payload: Record<string, any
   });
 
   if (error) {
-    // Detect auth errors early
     if (isAuthError(error)) {
       console.error('[callManageUser] Auth error, forcing logout');
       await forceLogout();

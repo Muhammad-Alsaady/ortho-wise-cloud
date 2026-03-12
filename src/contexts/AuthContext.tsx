@@ -84,8 +84,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (session?.user) {
-          setUser(session.user);
-          await fetchUserData(session.user.id);
+          // Validate the session is actually still valid (getSession reads localStorage, doesn't verify)
+          const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+
+          if (userError || !validatedUser) {
+            console.warn("[Auth] Session token is stale/expired, clearing:", userError?.message);
+            // Clear stale tokens so refresh actually works
+            Object.keys(localStorage).forEach((k) => {
+              if (k.startsWith('sb-')) localStorage.removeItem(k);
+            });
+            clearAuth();
+            setLoading(false);
+            return;
+          }
+
+          setUser(validatedUser);
+          await fetchUserData(validatedUser.id);
         }
       } catch (err) {
         console.error("[Auth] initSession failed:", err);
