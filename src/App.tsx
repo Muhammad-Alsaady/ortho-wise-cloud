@@ -32,22 +32,20 @@ const AppRoutes = () => {
 
   // Handle session expiration safely
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        console.log("Session expired, redirecting to login");
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((event, session) => {
+    console.log("Auth event:", event);
 
-        localStorage.removeItem("sb-mdcwkvsdkclwzqxxetiw-auth-token");
+    if (event === "SIGNED_OUT") {
+      window.location.href = "/login";
+    }
+  });
 
-        window.location.href = "/login";
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
 
   if (loading) {
     return (
