@@ -30,24 +30,32 @@ const PatientManagement: React.FC = () => {
     if (!clinicId) return;
     setLoading(true);
 
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    try {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-    let query = supabase
-      .from('patients')
-      .select('*', { count: 'exact' })
-      .eq('clinic_id', clinicId)
-      .order('created_at', { ascending: false })
-      .range(from, to);
+      let query = supabase
+        .from('patients')
+        .select('*', { count: 'exact' })
+        .eq('clinic_id', clinicId)
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+      }
+
+      const { data, count, error } = await query;
+      if (error) {
+        console.error('[PatientManagement] fetchPatients error:', error);
+      }
+      setPatients(data || []);
+      setTotalCount(count || 0);
+    } catch (err: any) {
+      console.error('[PatientManagement] fetchPatients exception:', err);
+    } finally {
+      setLoading(false);
     }
-
-    const { data, count } = await query;
-    setPatients(data || []);
-    setTotalCount(count || 0);
-    setLoading(false);
   };
 
   useEffect(() => { fetchPatients(); }, [clinicId, page, search]);

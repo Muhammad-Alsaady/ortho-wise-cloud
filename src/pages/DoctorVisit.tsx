@@ -38,59 +38,72 @@ const DoctorVisit: React.FC = () => {
     if (!id) return;
     setLoading(true);
 
-    const { data: visitData } = await supabase
-      .from('visits')
-      .select(`*, appointment:appointments(*, patient:patients(*))`)
-      .eq('id', id)
-      .single();
+    try {
+      const { data: visitData, error: visitError } = await supabase
+        .from('visits')
+        .select(`*, appointment:appointments(*, patient:patients(*))`)
+        .eq('id', id)
+        .single();
 
-    if (visitData) {
-      setVisit(visitData);
-      setNotes(visitData.notes || '');
-      setPatient(visitData.appointment?.patient);
+      if (visitError) {
+        console.error('[DoctorVisit] fetchVisit error:', visitError);
+        toast({ title: 'Error', description: visitError.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+
+      if (visitData) {
+        setVisit(visitData);
+        setNotes(visitData.notes || '');
+        setPatient(visitData.appointment?.patient);
+      }
+
+      const { data: plans } = await supabase
+        .from('treatment_plans')
+        .select('*, treatment:treatments(name)')
+        .eq('visit_id', id);
+      setTreatmentPlans(plans || []);
+
+      const discounts: Record<string, string> = {};
+      (plans || []).forEach(p => { discounts[p.id] = String(p.discount); });
+      setEditingDiscounts(discounts);
+
+      const planIds = (plans || []).map(p => p.id);
+      if (planIds.length > 0) {
+        const { data: imgs } = await supabase
+          .from('treatment_images')
+          .select('*')
+          .in('treatment_plan_id', planIds);
+
+        const resolvedImages = await Promise.all((imgs || []).map(async (img) => {
+          try {
+            if (img.image_url && !img.image_url.startsWith('http')) {
+              const { data } = await supabase.storage.from('treatment-images').createSignedUrl(img.image_url, 3600);
+              return { ...img, image_url: data?.signedUrl || img.image_url };
+            }
+            return img;
+          } catch {
+            return img;
+          }
+        }));
+        setImages(resolvedImages);
+      } else {
+        setImages([]);
+      }
+
+      if (clinicId) {
+        const { data: txs } = await supabase
+          .from('treatments')
+          .select('*')
+          .eq('clinic_id', clinicId);
+        setTreatments(txs || []);
+      }
+    } catch (err: any) {
+      console.error('[DoctorVisit] fetchVisit exception:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to load visit', variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
-
-    const { data: plans } = await supabase
-      .from('treatment_plans')
-      .select('*, treatment:treatments(name)')
-      .eq('visit_id', id);
-    setTreatmentPlans(plans || []);
-
-    // Init discount editing state
-    const discounts: Record<string, string> = {};
-    (plans || []).forEach(p => { discounts[p.id] = String(p.discount); });
-    setEditingDiscounts(discounts);
-
-    const planIds = (plans || []).map(p => p.id);
-    if (planIds.length > 0) {
-      const { data: imgs } = await supabase
-        .from('treatment_images')
-        .select('*')
-        .in('treatment_plan_id', planIds);
-
-      // Generate signed URLs for private bucket images
-      const resolvedImages = await Promise.all((imgs || []).map(async (img) => {
-        if (img.image_url && !img.image_url.startsWith('http')) {
-          const { data } = await supabase.storage.from('treatment-images').createSignedUrl(img.image_url, 3600);
-          return { ...img, image_url: data?.signedUrl || img.image_url };
-        }
-        // If URL is old signed URL that may have expired, try to re-sign from path stored
-        return img;
-      }));
-      setImages(resolvedImages);
-    } else {
-      setImages([]);
-    }
-
-    if (clinicId) {
-      const { data: txs } = await supabase
-        .from('treatments')
-        .select('*')
-        .eq('clinic_id', clinicId);
-      setTreatments(txs || []);
-    }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -135,10 +148,15 @@ const DoctorVisit: React.FC = () => {
 
   const handleCompleteVisit = async () => {
     if (!id || !visit) return;
-    await supabase.from('visits').update({ status: 'Completed' as const }).eq('id', id);
-    await supabase.from('appointments').update({ status: 'Completed' as const }).eq('id', visit.appointment_id);
-    toast({ title: t('doctor.completeVisit') });
-    navigate('/doctor-queue');
+    try {
+      await supabase.from('visits').update({ status: 'Completed' as const }).eq('id', id);
+      await supabase.from('appointments').update({ status: 'Completed' as const }).eq('id', visit.appointment_id);
+      toast({ title: t('doctor.completeVisit') });
+      navigate('/doctor-queue');
+    } catch (err: any) {
+      console.error('[DoctorVisit] handleCompleteVisit error:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to complete visit', variant: 'destructive' });
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

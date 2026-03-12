@@ -35,15 +35,23 @@ const Reports: React.FC = () => {
 
   useEffect(() => {
     if (!clinicId) return;
-    supabase.from('profiles').select('id, name, user_id').eq('clinic_id', clinicId).then(async ({ data }) => {
+    supabase.from('profiles').select('id, name, user_id').eq('clinic_id', clinicId).then(async ({ data, error }) => {
+      if (error) {
+        console.error('[Reports] doctor fetch error:', error);
+        return;
+      }
       if (!data) return;
       const docs: any[] = [];
       for (const p of data) {
-        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', p.user_id);
-        if (roles?.some(r => r.role === 'doctor')) docs.push(p);
+        try {
+          const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', p.user_id);
+          if (roles?.some(r => r.role === 'doctor')) docs.push(p);
+        } catch (err) {
+          console.error('[Reports] role fetch error for', p.user_id, err);
+        }
       }
       setDoctors(docs);
-    });
+    }).catch(err => console.error('[Reports] doctors fetch exception:', err));
   }, [clinicId]);
 
   const fetchReports = async () => {
@@ -53,47 +61,35 @@ const Reports: React.FC = () => {
     const fromStr = format(dateFrom, 'yyyy-MM-dd');
     const toStr = format(dateTo, 'yyyy-MM-dd');
 
-    // Daily revenue
-    const { data: dr } = await supabase
-      .from('daily_revenue')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .gte('revenue_date', fromStr)
-      .lte('revenue_date', toStr)
-      .order('revenue_date');
-    setDailyRevenue(dr || []);
+    try {
+      const [drRes, mrRes, dpRes, tpRes, pbRes] = await Promise.all([
+        supabase.from('daily_revenue').select('*').eq('clinic_id', clinicId).gte('revenue_date', fromStr).lte('revenue_date', toStr).order('revenue_date'),
+        supabase.from('monthly_revenue').select('*').eq('clinic_id', clinicId),
+        (() => {
+          let q = supabase.from('doctor_performance').select('*').eq('clinic_id', clinicId);
+          if (doctorFilter !== 'all') q = q.eq('doctor_id', doctorFilter);
+          return q;
+        })(),
+        supabase.from('treatment_popularity').select('*').eq('clinic_id', clinicId).order('usage_count', { ascending: false }),
+        supabase.from('patient_balances').select('*').eq('clinic_id', clinicId).gt('balance', 0).order('balance', { ascending: false }),
+      ]);
 
-    // Monthly revenue
-    const { data: mr } = await supabase
-      .from('monthly_revenue')
-      .select('*')
-      .eq('clinic_id', clinicId);
-    setMonthlyRevenue(mr || []);
+      if (drRes.error) console.error('[Reports] daily_revenue error:', drRes.error);
+      if (mrRes.error) console.error('[Reports] monthly_revenue error:', mrRes.error);
+      if (dpRes.error) console.error('[Reports] doctor_performance error:', dpRes.error);
+      if (tpRes.error) console.error('[Reports] treatment_popularity error:', tpRes.error);
+      if (pbRes.error) console.error('[Reports] patient_balances error:', pbRes.error);
 
-    // Doctor performance
-    let dpQuery = supabase.from('doctor_performance').select('*').eq('clinic_id', clinicId);
-    if (doctorFilter !== 'all') dpQuery = dpQuery.eq('doctor_id', doctorFilter);
-    const { data: dp } = await dpQuery;
-    setDoctorPerf(dp || []);
-
-    // Treatment popularity
-    const { data: tp } = await supabase
-      .from('treatment_popularity')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .order('usage_count', { ascending: false });
-    setTreatmentPop(tp || []);
-
-    // Outstanding balances
-    const { data: pb } = await supabase
-      .from('patient_balances')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .gt('balance', 0)
-      .order('balance', { ascending: false });
-    setBalances(pb || []);
-
-    setLoading(false);
+      setDailyRevenue(drRes.data || []);
+      setMonthlyRevenue(mrRes.data || []);
+      setDoctorPerf(dpRes.data || []);
+      setTreatmentPop(tpRes.data || []);
+      setBalances(pbRes.data || []);
+    } catch (err: any) {
+      console.error('[Reports] fetchReports exception:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchReports(); }, [clinicId, dateFrom, dateTo, doctorFilter]);

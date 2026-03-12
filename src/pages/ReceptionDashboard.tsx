@@ -44,51 +44,58 @@ const ReceptionDashboard: React.FC = () => {
     if (!clinicId) return;
     setLoading(true);
 
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`
-        *,
-        patient:patients(name, phone),
-        doctor:profiles!appointments_doctor_id_fkey(name)
-      `)
-      .eq('clinic_id', clinicId)
-      .eq('appointment_date', dateStr)
-      .order('appointment_time', { ascending: true });
+    try {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          patient:patients(name, phone),
+          doctor:profiles!appointments_doctor_id_fkey(name)
+        `)
+        .eq('clinic_id', clinicId)
+        .eq('appointment_date', dateStr)
+        .order('appointment_time', { ascending: true });
 
-    if (error) {
-      console.error(error);
-      setAppointments([]);
-      setLoading(false);
-      return;
-    }
+      if (error) {
+        console.error('[ReceptionDashboard] fetchAppointments error:', error);
+        setAppointments([]);
+        setLoading(false);
+        return;
+      }
 
-    const aptIds = (data || []).map(a => a.id);
-    let summaryMap: Record<string, any> = {};
+      const aptIds = (data || []).map(a => a.id);
+      let summaryMap: Record<string, any> = {};
 
-    if (aptIds.length > 0) {
-      const { data: summaries } = await supabase
-        .from('appointment_summary')
-        .select('*')
-        .in('appointment_id', aptIds);
+      if (aptIds.length > 0) {
+        const { data: summaries } = await supabase
+          .from('appointment_summary')
+          .select('*')
+          .in('appointment_id', aptIds);
 
-      (summaries || []).forEach(s => {
-        summaryMap[s.appointment_id] = s;
+        (summaries || []).forEach(s => {
+          summaryMap[s.appointment_id] = s;
+        });
+      }
+
+      const enriched = (data || []).map(apt => {
+        const summary = summaryMap[apt.id];
+        return {
+          ...apt,
+          treatmentCount: Number(summary?.treatment_count || 0),
+          totalBilled: Number(summary?.total_billed || 0),
+          totalPaid: Number(summary?.total_paid || 0),
+        };
       });
+
+      setAppointments(enriched);
+    } catch (err: any) {
+      console.error('[ReceptionDashboard] fetchAppointments exception:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to load appointments', variant: 'destructive' });
+      setAppointments([]);
+    } finally {
+      setLoading(false);
     }
-
-    const enriched = (data || []).map(apt => {
-      const summary = summaryMap[apt.id];
-      return {
-        ...apt,
-        treatmentCount: Number(summary?.treatment_count || 0),
-        totalBilled: Number(summary?.total_billed || 0),
-        totalPaid: Number(summary?.total_paid || 0),
-      };
-    });
-
-    setAppointments(enriched);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -114,35 +121,46 @@ const ReceptionDashboard: React.FC = () => {
   }, [appointments, search]);
 
   const handleSendToDoctor = async (appointmentId: string) => {
-    const { error } = await supabase
-      .from('appointments')
-      .update({ status: 'Waiting' as const })
-      .eq('id', appointmentId);
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'Waiting' as const })
+        .eq('id', appointmentId);
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: t('reception.sendToDoctor') });
-      fetchAppointments();
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: t('reception.sendToDoctor') });
+        fetchAppointments();
+      }
+    } catch (err: any) {
+      console.error('[ReceptionDashboard] handleSendToDoctor error:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to send', variant: 'destructive' });
     }
   };
 
   const handleCancelAppointment = async () => {
     if (!cancelTarget) return;
     setCancelLoading(true);
-    const { error } = await supabase
-      .from('appointments')
-      .update({ status: 'Cancelled' as const })
-      .eq('id', cancelTarget.id);
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'Cancelled' as const })
+        .eq('id', cancelTarget.id);
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: t('reception.appointmentCancelled') });
-      fetchAppointments();
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: t('reception.appointmentCancelled') });
+        fetchAppointments();
+      }
+    } catch (err: any) {
+      console.error('[ReceptionDashboard] handleCancelAppointment error:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to cancel', variant: 'destructive' });
+    } finally {
+      setCancelLoading(false);
+      setCancelTarget(null);
     }
-    setCancelLoading(false);
-    setCancelTarget(null);
   };
 
   return (

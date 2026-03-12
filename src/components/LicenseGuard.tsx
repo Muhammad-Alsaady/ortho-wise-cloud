@@ -20,11 +20,15 @@ const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
       return;
     }
     import('@/integrations/supabase/client').then(({ supabase }) => {
-      supabase.from('clinics').select('*').eq('id', clinicId).single().then(({ data }) => {
+      supabase.from('clinics').select('*').eq('id', clinicId).single().then(({ data, error }) => {
+        if (error) console.error('[LicenseGuard] fetch error:', error);
         setClinic(data);
         setLoading(false);
       });
-    }).catch(() => setLoading(false));
+    }).catch((err) => {
+      console.error('[LicenseGuard] import/fetch exception:', err);
+      setLoading(false);
+    });
   }, [clinicId]);
 
   if (loading) return null;

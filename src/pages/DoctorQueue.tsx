@@ -22,19 +22,30 @@ const DoctorQueue: React.FC = () => {
   const fetchQueue = async () => {
     if (!profile || !clinicId) return;
     setLoading(true);
-    const today = format(new Date(), 'yyyy-MM-dd');
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
 
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`*, patient:patients(name, phone, age)`)
-      .eq('clinic_id', clinicId)
-      .eq('doctor_id', profile.id)
-      .eq('appointment_date', today)
-      .in('status', ['Waiting', 'WithDoctor'])
-      .order('appointment_time', { ascending: true });
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`*, patient:patients(name, phone, age)`)
+        .eq('clinic_id', clinicId)
+        .eq('doctor_id', profile.id)
+        .eq('appointment_date', today)
+        .in('status', ['Waiting', 'WithDoctor'])
+        .order('appointment_time', { ascending: true });
 
-    if (!error) setQueue(data || []);
-    setLoading(false);
+      if (error) {
+        console.error('[DoctorQueue] fetchQueue error:', error);
+        toast({ title: 'Error loading queue', description: error.message, variant: 'destructive' });
+      } else {
+        setQueue(data || []);
+      }
+    } catch (err: any) {
+      console.error('[DoctorQueue] fetchQueue exception:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to load queue', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -47,32 +58,46 @@ const DoctorQueue: React.FC = () => {
   }, [profile, clinicId]);
 
   const handleAcceptPatient = async (appointment: any) => {
-    // Update appointment status to WithDoctor
-    await supabase.from('appointments').update({ status: 'WithDoctor' as const }).eq('id', appointment.id);
+    try {
+      await supabase.from('appointments').update({ status: 'WithDoctor' as const }).eq('id', appointment.id);
 
-    // Create visit
-    const { data: visit, error } = await supabase.from('visits').insert({
-      appointment_id: appointment.id,
-      clinic_id: appointment.clinic_id,
-      doctor_id: appointment.doctor_id,
-    }).select().single();
+      const { data: visit, error } = await supabase.from('visits').insert({
+        appointment_id: appointment.id,
+        clinic_id: appointment.clinic_id,
+        doctor_id: appointment.doctor_id,
+      }).select().single();
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      return;
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      navigate(`/visit/${visit.id}`);
+    } catch (err: any) {
+      console.error('[DoctorQueue] handleAcceptPatient error:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to start visit', variant: 'destructive' });
     }
-
-    navigate(`/visit/${visit.id}`);
   };
 
   const handleContinueVisit = async (appointment: any) => {
-    const { data: visit } = await supabase
-      .from('visits')
-      .select('id')
-      .eq('appointment_id', appointment.id)
-      .single();
+    try {
+      const { data: visit, error } = await supabase
+        .from('visits')
+        .select('id')
+        .eq('appointment_id', appointment.id)
+        .single();
 
-    if (visit) navigate(`/visit/${visit.id}`);
+      if (error) {
+        console.error('[DoctorQueue] handleContinueVisit error:', error);
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      if (visit) navigate(`/visit/${visit.id}`);
+    } catch (err: any) {
+      console.error('[DoctorQueue] handleContinueVisit exception:', err);
+      toast({ title: 'Error', description: err?.message ?? 'Failed to continue visit', variant: 'destructive' });
+    }
   };
 
   return (

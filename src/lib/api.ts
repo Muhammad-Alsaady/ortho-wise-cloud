@@ -1,5 +1,51 @@
 import { supabase } from '@/integrations/supabase/client';
 
+/** Check if an error looks like an auth/JWT problem */
+export const isAuthError = (err: any): boolean => {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return /jwt|token|unauthorized|401|auth|not authenticated/i.test(msg);
+};
+
+/** Force-clear the session and redirect to login */
+export const forceLogout = async () => {
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // Manual cleanup if signOut itself fails
+    Object.keys(localStorage).forEach((k) => {
+      if (k.startsWith('sb-')) localStorage.removeItem(k);
+    });
+  }
+  window.location.replace('/');
+};
+
+/**
+ * Wrap any async operation: auto-logout on auth errors, re-throw others.
+ */
+export const safeAsync = async <T>(fn: () => Promise<T>): Promise<T> => {
+  try {
+    return await fn();
+  } catch (err: any) {
+    if (isAuthError(err)) {
+      console.error('[safeAsync] Auth error detected, logging out:', err);
+      await forceLogout();
+    }
+    throw err;
+  }
+};
+
+/** Turn a Supabase { error } response into a thrown Error */
+export const handleSupabaseError = (error: any, context?: string) => {
+  if (!error) return;
+  const msg = error.message || 'Unknown database error';
+  console.error(`[${context || 'supabase'}]`, msg);
+  if (isAuthError(error)) {
+    forceLogout();
+    return;
+  }
+  throw new Error(msg);
+};
+
 /**
  * Reusable helper for calling the manage-user Edge Function.
  * Explicitly fetches the session so the Authorization header is
@@ -17,8 +63,14 @@ export const callManageUser = async (action: string, payload: Record<string, any
   });
 
   if (error) {
+    // Detect auth errors early
+    if (isAuthError(error)) {
+      console.error('[callManageUser] Auth error, forcing logout');
+      await forceLogout();
+      throw error;
+    }
+
     // Try to extract the real error message from the response body.
-    // Use a timeout so we never hang indefinitely.
     const ctx = (error as any).context;
     if (ctx instanceof Response && !ctx.bodyUsed) {
       try {
@@ -32,7 +84,6 @@ export const callManageUser = async (action: string, payload: Record<string, any
         const realMessage = body?.error || body?.message;
         if (realMessage) throw new Error(realMessage);
       } catch (parseErr: any) {
-        // If we extracted a real message, propagate it
         if (parseErr.message !== error.message) throw parseErr;
       }
     }

@@ -21,8 +21,13 @@ const AuditLogs: React.FC = () => {
       .eq('clinic_id', clinicId)
       .order('created_at', { ascending: false })
       .limit(100)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error('[AuditLogs] fetch error:', error);
         setLogs(data || []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('[AuditLogs] exception:', err);
         setLoading(false);
       });
   }, [clinicId]);
