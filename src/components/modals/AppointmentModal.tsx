@@ -90,73 +90,60 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
     }
   }, [open]);
 
-  // Load doctors once
-  useEffect(() => {
-    if (!clinicId) {
-      console.warn('[AppointmentModal] clinicId is null — cannot fetch doctors');
-      setDoctorsError('Clinic not loaded yet. Try closing and reopening this dialog.');
-      return;
-    }
-    
-    const fetchDoctors = async () => {
-      setDoctorsLoading(true);
-      setDoctorsError(null);
-      console.log('[AppointmentModal] Fetching doctors for clinicId:', clinicId);
-      
-      try {
-        // Get all profiles in the clinic
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, name, user_id')
-          .eq('clinic_id', clinicId);
-          
-        if (profilesError) {
-          if (checkAuthError(profilesError, 'AppointmentModal.profiles')) return;
-          console.error('[AppointmentModal] Error fetching profiles:', profilesError);
-          setDoctorsError(`Failed to load profiles: ${profilesError.message}`);
-          return;
-        }
-        
-        if (!profilesData || profilesData.length === 0) {
-          console.warn('[AppointmentModal] No profiles found for clinic:', clinicId);
-          setDoctorsError('No users found in this clinic');
-          return;
-        }
-        
-        // Batch fetch doctor roles
-        const userIds = profilesData.map(p => p.user_id);
-        const { data: rolesData, error: rolesError } = await supabase
-          .from('user_roles')
-          .select('user_id, role')
-          .in('user_id', userIds)
-          .eq('role', 'doctor');
-          
-        if (rolesError) {
-          if (checkAuthError(rolesError, 'AppointmentModal.roles')) return;
-          console.error('[AppointmentModal] Error fetching roles:', rolesError);
-          setDoctorsError(`Failed to load doctor roles: ${rolesError.message}`);
-          return;
-        }
-        
-        const doctorUserIds = new Set(rolesData?.map(r => r.user_id) || []);
-        const doctorProfiles = profilesData.filter(p => doctorUserIds.has(p.user_id));
-        
-        console.log('[AppointmentModal] Found', doctorProfiles.length, 'doctors');
-        setDoctors(doctorProfiles);
-        
-        if (doctorProfiles.length === 0) {
-          setDoctorsError('No doctors found in this clinic');
-        }
-      } catch (err: any) {
-        console.error('[AppointmentModal] Unexpected error fetching doctors:', err);
-        setDoctorsError('Unexpected error loading doctors');
-      } finally {
-        setDoctorsLoading(false);
+// Load doctors for the clinic
+useEffect(() => {
+  if (!clinicId) {
+    console.warn('[AppointmentModal] clinicId is null — cannot fetch doctors');
+    setDoctorsError('Clinic not loaded yet. Try closing and reopening this dialog.');
+    return;
+  }
+
+  const fetchDoctors = async () => {
+    setDoctorsLoading(true);
+    setDoctorsError(null);
+
+    console.log('[AppointmentModal] Fetching doctors for clinicId:', clinicId);
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          name,
+          user_id,
+          user_roles!inner(role)
+        `)
+        .eq('clinic_id', clinicId)
+        .eq('user_roles.role', 'doctor');
+
+      if (error) {
+        if (checkAuthError(error, 'AppointmentModal.fetchDoctors')) return;
+
+        console.error('[AppointmentModal] Error fetching doctors:', error);
+        setDoctorsError(`Failed to load doctors: ${error.message}`);
+        return;
       }
-    };
-    
-    fetchDoctors();
-  }, [clinicId]);
+
+      if (!data || data.length === 0) {
+        console.warn('[AppointmentModal] No doctors found for clinic:', clinicId);
+        setDoctors([]);
+        setDoctorsError('No doctors found in this clinic');
+        return;
+      }
+
+      console.log('[AppointmentModal] Doctors loaded:', data);
+
+      setDoctors(data);
+    } catch (err: any) {
+      console.error('[AppointmentModal] Unexpected error fetching doctors:', err);
+      setDoctorsError('Unexpected error loading doctors');
+    } finally {
+      setDoctorsLoading(false);
+    }
+  };
+
+  fetchDoctors();
+}, [clinicId]);
 
   // Phone lookup with debounce — auto-populates patient fields
   const lookupPatient = useCallback(async (phoneNum: string) => {
