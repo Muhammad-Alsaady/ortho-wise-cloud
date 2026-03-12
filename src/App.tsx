@@ -1,4 +1,5 @@
 // Dental Clinic Management App
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,10 +23,31 @@ import Reports from "@/pages/Reports";
 import SuperAdmin from "@/pages/SuperAdmin";
 import Profile from "@/pages/Profile";
 
+import { supabase } from "./supabaseClient";
+
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const { user, role, loading } = useAuth();
+
+  // Handle session expiration safely
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        console.log("Session expired, redirecting to login");
+
+        localStorage.removeItem("sb-mdcwkvsdkclwzqxxetiw-auth-token");
+
+        window.location.href = "/login";
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -44,7 +66,7 @@ const AppRoutes = () => {
       <LicenseGuard>
         <Routes>
 
-          {/* Root route always exists */}
+          {/* Root route */}
           <Route
             path="/"
             element={
@@ -54,8 +76,12 @@ const AppRoutes = () => {
             }
           />
 
-          {/* Reception + Admin + Superadmin + Doctor + AdminDoctor */}
-          {(role === "reception" || role === "admin" || role === "superadmin" || role === "doctor" || role === "admin_doctor") && (
+          {/* Reception + Admin + Superadmin + Doctor */}
+          {(role === "reception" ||
+            role === "admin" ||
+            role === "superadmin" ||
+            role === "doctor" ||
+            role === "admin_doctor") && (
             <>
               <Route path="/patients" element={<PatientManagement />} />
             </>
@@ -73,7 +99,9 @@ const AppRoutes = () => {
           <Route path="/profile" element={<Profile />} />
 
           {/* Admin routes */}
-          {(role === "admin" || role === "superadmin" || role === "admin_doctor") && (
+          {(role === "admin" ||
+            role === "superadmin" ||
+            role === "admin_doctor") && (
             <>
               <Route path="/reports" element={<Reports />} />
               <Route path="/admin" element={<AdminPanel />} />
