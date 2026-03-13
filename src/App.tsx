@@ -1,5 +1,4 @@
 // Dental Clinic Management App
-import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,29 +22,10 @@ import Reports from "@/pages/Reports";
 import SuperAdmin from "@/pages/SuperAdmin";
 import Profile from "@/pages/Profile";
 
-import { supabase } from "./integrations/supabase/client";
-
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const { user, role, loading } = useAuth();
-
-  // Handle session expiration safely
-  useEffect(() => {
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((event, session) => {
-    console.log("Auth event:", event);
-
-    if (event === "SIGNED_OUT") {
-      window.location.href = "/login";
-    }
-  });
-
-  return () => {
-    subscription.unsubscribe();
-  };
-}, []);
 
   if (loading) {
     return (
@@ -92,8 +72,13 @@ const AppRoutes = () => {
             </>
           )}
 
-          {/* Shared routes */}
-          <Route path="/visit/:id" element={<DoctorVisit />} />
+          {/* Visit — doctors and admins only */}
+          {(role === "doctor" ||
+            role === "admin_doctor" ||
+            role === "admin" ||
+            role === "superadmin") && (
+            <Route path="/visit/:id" element={<DoctorVisit />} />
+          )}
           <Route path="/profile" element={<Profile />} />
 
           {/* Admin routes */}

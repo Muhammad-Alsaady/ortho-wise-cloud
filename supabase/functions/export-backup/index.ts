@@ -1,19 +1,29 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+// Allow only the configured origin (set ALLOWED_ORIGIN in Supabase Edge Function secrets)
+const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "";
+
+function headers(origin: string | null) {
+  const allow = allowedOrigin && origin === allowedOrigin ? origin : allowedOrigin;
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+  };
+}
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const headers = headers(origin);
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers });
   }
 
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers });
     }
 
     const supabaseAdmin = createClient(
@@ -22,16 +32,16 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Verify user
+    // Verify user via getUser() — cryptographic verification against the Auth server
     const supabaseUser = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: authHeader } }, auth: { autoRefreshToken: false, persistSession: false } }
     );
 
     const { data: { user }, error: authErr } = await supabaseUser.auth.getUser();
     if (authErr || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: headers });
     }
 
     // Check role - only admins and superadmins can export
@@ -41,13 +51,13 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id);
     const roleNames = (roles || []).map((r: { role: string }) => r.role);
     if (!roleNames.includes('admin') && !roleNames.includes('superadmin')) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: headers });
     }
 
     // Get user's clinic
     const { data: profile } = await supabaseAdmin.from('profiles').select('clinic_id').eq('user_id', user.id).single();
     if (!profile) {
-      return new Response(JSON.stringify({ error: 'No clinic found' }), { status: 404, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'No clinic found' }), { status: 404, headers: headers });
     }
 
     const clinicId = profile.clinic_id;
@@ -82,12 +92,12 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify(backup, null, 2), {
       headers: {
-        ...corsHeaders,
+        ...headers,
         'Content-Type': 'application/json',
         'Content-Disposition': `attachment; filename="clinic-backup-${new Date().toISOString().slice(0, 10)}.json"`,
       },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: headers });
   }
 });

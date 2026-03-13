@@ -1,55 +1,53 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+// Allow only the configured origin (set ALLOWED_ORIGIN in Supabase Edge Function secrets)
+const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "";
 
-/**
- * Decode JWT payload without a network call.
- * The Supabase gateway already validates the signature before the function
- * runs, so we only need to extract the `sub` (user ID) from the payload.
- */
-function decodeJwtSub(authHeader: string): string {
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  const parts = token.split(".");
-  if (parts.length !== 3) throw new Error("Malformed JWT");
-  const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-  const payload = JSON.parse(atob(padded));
-  if (!payload.sub) throw new Error("JWT has no sub claim");
-  return payload.sub as string;
+function corsHeaders(origin: string | null) {
+  const allow = allowedOrigin && origin === allowedOrigin ? origin : allowedOrigin;
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+  };
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const headers = corsHeaders(origin);
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers });
   }
 
   const json = (data: unknown, status = 200) =>
     new Response(JSON.stringify(data), {
       status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
     });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // ── Authenticate caller ───────────────────────────────────────────────────
-    // Decode the JWT locally — no extra HTTP call to Auth.
-    // The gateway already verified the signature before forwarding here.
+    // Use getUser() to cryptographically verify the JWT with the Auth server.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Missing authorization header" }, 401);
 
-    let callerId: string;
-    try {
-      callerId = decodeJwtSub(authHeader);
-    } catch {
-      return json({ error: "Invalid authorization token" }, 401);
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: { user: callerUser }, error: callerAuthError } = await userClient.auth.getUser();
+    if (callerAuthError || !callerUser) {
+      return json({ error: "Invalid or expired authorization token" }, 401);
     }
+
+    const callerId = callerUser.id;
 
     // ── Fetch caller roles (service role bypasses RLS) ────────────────────────
     const { data: roleData } = await supabase
@@ -251,7 +249,7 @@ Deno.serve(async (req) => {
     console.error("[manage-user] unhandled error:", err);
     return new Response(JSON.stringify({ error: err.message ?? "Internal error" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...headers, "Content-Type": "application/json" },
     });
   }
 });

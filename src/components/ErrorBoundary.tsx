@@ -6,13 +6,12 @@ import { AlertTriangle } from 'lucide-react';
 interface State {
   hasError: boolean;
   error?: Error;
-  showDetails: boolean;
 }
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, showDetails: false };
+    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
@@ -63,23 +62,6 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State
                   </Button>
                 )}
               </div>
-              {this.state.error && (
-                <div className="text-xs text-left">
-                  <button
-                    className="text-muted-foreground underline"
-                    onClick={() => this.setState((s) => ({ showDetails: !s.showDetails }))}
-                  >
-                    {this.state.showDetails ? 'Hide details' : 'Show details'}
-                  </button>
-                  {this.state.showDetails && (
-                    <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto max-h-40">
-                      {this.state.error.message}
-                      {'\n'}
-                      {this.state.error.stack}
-                    </pre>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>

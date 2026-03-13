@@ -43,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const ROLE_PRIORITY: Record<string, number> = {
       superadmin: 4,
       admin: 3,
+      admin_doctor: 3,
       doctor: 2,
       reception: 1,
     };
@@ -84,22 +85,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (session?.user) {
-          // Validate the session is actually still valid (getSession reads localStorage, doesn't verify)
-          const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+          // Validate the session is still valid with a 10-second timeout.
+          // getSession() only reads localStorage; getUser() verifies with the server.
+          const verifyPromise = supabase.auth.getUser();
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("auth_timeout")), 10_000)
+          );
 
-          if (userError || !validatedUser) {
-            console.warn("[Auth] Session token is stale/expired, clearing:", userError?.message);
-            // Clear stale tokens so refresh actually works
+          let validatedUser = null;
+          let userError: any = null;
+
+          try {
+            const result = await Promise.race([verifyPromise, timeoutPromise]);
+            validatedUser = result.data.user;
+            userError = result.error;
+          } catch (err: any) {
+            userError = err;
+          }
+
+          // Only wipe localStorage for definitive auth failures, not network/timeout errors.
+          const isDefiniteAuthFailure =
+            userError &&
+            userError.message !== "auth_timeout" &&
+            /jwt|invalid.?token|token.?expired|unauthorized|not authenticated|session.?expired/i.test(
+              userError.message || ""
+            );
+
+          if (isDefiniteAuthFailure) {
+            console.warn("[Auth] Session token is invalid, clearing:", userError?.message);
             Object.keys(localStorage).forEach((k) => {
-              if (k.startsWith('sb-')) localStorage.removeItem(k);
+              if (k.startsWith("sb-")) localStorage.removeItem(k);
             });
             clearAuth();
             setLoading(false);
             return;
           }
 
-          setUser(validatedUser);
-          await fetchUserData(validatedUser.id);
+          if (userError) {
+            // Network error or timeout — don't wipe session, just proceed with cached user
+            console.warn("[Auth] Could not verify session (network/timeout), using cached session:", userError.message);
+          }
+
+          // Use validatedUser if available, otherwise fall back to the cached session user
+          const resolvedUser = validatedUser ?? session.user;
+          setUser(resolvedUser);
+          await fetchUserData(resolvedUser.id);
         }
       } catch (err) {
         console.error("[Auth] initSession failed:", err);

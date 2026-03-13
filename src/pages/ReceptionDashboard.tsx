@@ -104,8 +104,13 @@ const ReceptionDashboard: React.FC = () => {
     fetchAppointments();
 
     const channel = supabase
-      .channel('appointments-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
+      .channel(`appointments-changes-${clinicId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `clinic_id=eq.${clinicId}`,
+      }, () => {
         fetchAppointments();
       })
       .subscribe();
