@@ -62,7 +62,7 @@ const AuditLogs: React.FC = () => {
               <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
             ) : logs.map(log => (
               <TableRow key={log.id}>
-                <TableCell className="text-sm">{format(new Date(log.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
+                <TableCell className="text-sm">{format(new Date(log.created_at), 'dd/MM/yyyy h:mm a')}</TableCell>
                 <TableCell>
                   <Badge className={actionColors[log.action] || 'bg-muted text-muted-foreground'}>
                     {log.action}

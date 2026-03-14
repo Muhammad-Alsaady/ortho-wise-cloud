@@ -12,6 +12,16 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { checkAuthError } from '@/lib/api';
 
+/** Convert "HH:mm" 24-hour string to "h:mm AM/PM" */
+function formatTime12(time24: string | null | undefined): string {
+  if (!time24) return '';
+  const [hStr, mStr] = time24.slice(0, 5).split(':');
+  const h = Number(hStr);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${mStr} ${period}`;
+}
+
 const DoctorQueue: React.FC = () => {
   const { profile, clinicId } = useAuth();
   const { t } = useLanguage();
@@ -53,8 +63,13 @@ const DoctorQueue: React.FC = () => {
   useEffect(() => {
     fetchQueue();
     const channel = supabase
-      .channel('doctor-queue')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => fetchQueue())
+      .channel(`doctor-queue-${profile?.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `clinic_id=eq.${clinicId}`,
+      }, () => fetchQueue())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [profile, clinicId]);
@@ -128,7 +143,7 @@ const DoctorQueue: React.FC = () => {
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
-                {apt.appointment_time?.slice(0, 5)}
+                {formatTime12(apt.appointment_time)}
               </div>
               <div className="text-sm text-muted-foreground">
                 {t('patients.phone')}: {apt.patient?.phone}

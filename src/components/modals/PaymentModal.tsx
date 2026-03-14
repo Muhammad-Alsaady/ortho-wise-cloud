@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,6 +19,7 @@ interface Props {
 }
 
 const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
+  const { clinicId } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
 
@@ -28,6 +30,19 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
   const [discountPlan, setDiscountPlan] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
   const [saving, setSaving] = useState(false);
+  const [appointmentFee, setAppointmentFee] = useState(0);
+
+  // Fetch clinic appointment fee
+  useEffect(() => {
+    const cid = appointment?.clinic_id || clinicId;
+    if (!cid) return;
+    supabase.from('clinics').select('appointment_fee').eq('id', cid).single()
+      .then(({ data }) => {
+        const fee = Number(data?.appointment_fee ?? 0);
+        setAppointmentFee(fee);
+        if (fee > 0) setAmount(String(fee));
+      });
+  }, [appointment, clinicId]);
 
   const fetchData = async () => {
     try {
@@ -143,6 +158,11 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
               </SelectContent>
             </Select>
             <Input type="number" placeholder={t('payment.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} />
+            {appointmentFee > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t('payment.appointmentFeeHint') || 'Appointment fee'}: <button type="button" className="text-primary underline" onClick={() => setAmount(String(appointmentFee))}>{appointmentFee}</button>
+              </p>
+            )}
             <Button className="w-full" onClick={handleAddPayment} disabled={saving || !selectedPlan || !amount}>
               {t('payment.addPayment')}
             </Button>
@@ -178,7 +198,7 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
                   <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
                 ) : payments.map(p => (
                   <TableRow key={p.id}>
-                    <TableCell>{format(new Date(p.created_at), 'PPP HH:mm')}</TableCell>
+                    <TableCell>{format(new Date(p.created_at), 'PPP h:mm a')}</TableCell>
                     <TableCell className="font-medium">{p.amount}</TableCell>
                   </TableRow>
                 ))}

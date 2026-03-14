@@ -126,6 +126,7 @@ export type Database = {
       clinics: {
         Row: {
           address: string | null
+          appointment_fee: number
           created_at: string
           id: string
           license_expiry: string | null
@@ -136,6 +137,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          appointment_fee?: number
           created_at?: string
           id?: string
           license_expiry?: string | null
@@ -146,6 +148,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          appointment_fee?: number
           created_at?: string
           id?: string
           license_expiry?: string | null

@@ -9,17 +9,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
-import { CalendarIcon, UserCheck } from 'lucide-react';
+import { CalendarIcon, UserCheck, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { checkAuthError } from '@/lib/api';
 
-const TIME_SLOTS: string[] = [];
+// Build time slots from 9 AM to 11:30 PM; values are 24H (stored in DB), labels are 12H AM/PM
+const TIME_SLOTS: { value: string; label: string }[] = [];
 for (let h = 9; h < 24; h++) {
-  TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`);
-  TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`);
+  for (const m of [0, 30]) {
+    const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    const label = `${h12}:${String(m).padStart(2, '0')} ${period}`;
+    TIME_SLOTS.push({ value, label });
+  }
 }
 
 interface Props {
@@ -68,10 +75,12 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
   const [date, setDate] = useState<Date>(new Date());
   const [time, setTime] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
 
   // Validation
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitted, setSubmitted] = useState(false);
+  const [showBalanceWarning, setShowBalanceWarning] = useState(false);
 
   // Reset on open
   useEffect(() => {
@@ -236,12 +245,7 @@ useEffect(() => {
     return errs;
   };
 
-  const handleSave = async () => {
-    setSubmitted(true);
-    const errs = validate();
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-
+  const doSave = async () => {
     if (!clinicId) return;
     setSaving(true);
 
@@ -288,6 +292,21 @@ useEffect(() => {
       onClose();
     }
     setSaving(false);
+  };
+
+  const handleSave = async () => {
+    setSubmitted(true);
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    // Warn if existing patient has outstanding balance
+    if (foundPatient && foundPatient.balance > 0) {
+      setShowBalanceWarning(true);
+      return;
+    }
+
+    doSave();
   };
 
   // Clear specific error when user fixes it
@@ -413,15 +432,15 @@ useEffect(() => {
             {/* Date */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">{t('payment.date')}</label>
-              <Popover>
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-start")}>
                     <CalendarIcon className="me-2 h-4 w-4" />
-                    {format(date, 'PPP')}
+                    {format(date, 'EEEE, MMMM d, yyyy')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={date} onSelect={(d) => d && setDate(d)} className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={date} onSelect={(d) => { if (d) { setDate(d); setDateOpen(false); } }} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>
@@ -434,7 +453,7 @@ useEffect(() => {
                   <SelectValue placeholder={t('common.select')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {TIME_SLOTS.map(slot => <SelectItem key={slot} value={slot}>{slot}</SelectItem>)}
+                  {TIME_SLOTS.map(slot => <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               {errors.time && <p className="text-xs text-destructive">{errors.time}</p>}

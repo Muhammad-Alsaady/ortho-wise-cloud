@@ -19,6 +19,16 @@ import PaymentModal from '@/components/modals/PaymentModal';
 import { useToast } from '@/hooks/use-toast';
 import { checkAuthError } from '@/lib/api';
 
+/** Convert "HH:mm" 24-hour string to "h:mm AM/PM" */
+function formatTime12(time24: string | null | undefined): string {
+  if (!time24) return '';
+  const [hStr, mStr] = time24.slice(0, 5).split(':');
+  const h = Number(hStr);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${mStr} ${period}`;
+}
+
 const statusColors: Record<string, string> = {
   Booked: 'bg-blue-100 text-blue-800',
   Waiting: 'bg-yellow-100 text-yellow-800',
@@ -32,6 +42,7 @@ const ReceptionDashboard: React.FC = () => {
   const { t } = useLanguage();
   const { toast } = useToast();
   const [date, setDate] = useState<Date>(new Date());
+  const [dateOpen, setDateOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,15 +186,15 @@ const ReceptionDashboard: React.FC = () => {
       {/* Filters */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-3 p-4">
-          <Popover>
+          <Popover open={dateOpen} onOpenChange={setDateOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[200px] justify-start text-start font-normal")}>
+              <Button variant="outline" className={cn("w-[260px] justify-start text-start font-normal")}>
                 <CalendarIcon className="me-2 h-4 w-4" />
-                {format(date, 'PPP')}
+                {format(date, 'EEEE, MMMM d, yyyy')}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={date} onSelect={(d) => d && setDate(d)} className="p-3 pointer-events-auto" />
+              <Calendar mode="single" selected={date} onSelect={(d) => { if (d) { setDate(d); setDateOpen(false); } }} className="p-3 pointer-events-auto" />
             </PopoverContent>
           </Popover>
 
@@ -231,7 +242,7 @@ const ReceptionDashboard: React.FC = () => {
                   <TableCell className="font-medium">{apt.patient?.name}</TableCell>
                   <TableCell>{apt.patient?.phone}</TableCell>
                   <TableCell>{apt.doctor?.name}</TableCell>
-                  <TableCell>{apt.appointment_time?.slice(0, 5)}</TableCell>
+                  <TableCell>{formatTime12(apt.appointment_time)}</TableCell>
                   <TableCell>{apt.treatmentCount}</TableCell>
                   <TableCell className="text-green-600 font-medium">{apt.totalPaid}</TableCell>
                   <TableCell className="text-destructive font-medium">{apt.totalBilled - apt.totalPaid}</TableCell>

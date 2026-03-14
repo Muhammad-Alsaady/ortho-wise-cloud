@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Allow only the configured origin (set ALLOWED_ORIGIN in Supabase Edge Function secrets)
 const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN") ?? "";
 
-function headers(origin: string | null) {
+function getCorsHeaders(origin: string | null) {
   const allow = allowedOrigin && origin === allowedOrigin ? origin : allowedOrigin;
   return {
     "Access-Control-Allow-Origin": allow,
@@ -14,7 +14,7 @@ function headers(origin: string | null) {
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
-  const headers = headers(origin);
+  const headers = getCorsHeaders(origin);
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers });

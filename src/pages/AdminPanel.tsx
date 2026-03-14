@@ -36,7 +36,8 @@ const AdminPanel: React.FC = () => {
   const [treatments, setTreatments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [backupLoading, setBackupLoading] = useState(false);
-
+  const [appointmentFee, setAppointmentFee] = useState('0');
+  const [savingSettings, setSavingSettings] = useState(false);
   // Superadmin clinic selection
   const [clinics, setClinics] = useState<any[]>([]);
   const [selectedClinicId, setSelectedClinicId] = useState<string>('');
@@ -128,8 +129,17 @@ const AdminPanel: React.FC = () => {
     }
   }, [role]);
   
-  useEffect(() => { 
-    fetchData(); 
+  useEffect(() => {
+    fetchData();
+  }, [effectiveClinicId]);
+
+  // Load clinic settings whenever the active clinic changes
+  useEffect(() => {
+    if (!effectiveClinicId) return;
+    supabase.from('clinics').select('appointment_fee').eq('id', effectiveClinicId).single()
+      .then(({ data }) => {
+        setAppointmentFee(String(data?.appointment_fee ?? 0));
+      });
   }, [effectiveClinicId]);
 
   const handleSaveTreatment = async () => {
@@ -237,6 +247,18 @@ const AdminPanel: React.FC = () => {
     setBackupLoading(false);
   };
 
+  const handleSaveSettings = async () => {
+    if (!effectiveClinicId) return;
+    setSavingSettings(true);
+    const { error } = await supabase
+      .from('clinics')
+      .update({ appointment_fee: Number(appointmentFee) || 0 })
+      .eq('id', effectiveClinicId);
+    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    else toast({ title: t('admin.settingsSaved') });
+    setSavingSettings(false);
+  };
+
   return (
     <div className="space-y-4">
       {effectiveClinicId && (
@@ -284,6 +306,7 @@ const AdminPanel: React.FC = () => {
             <TabsTrigger value="receptionists">{t('admin.receptionists')}</TabsTrigger>
             <TabsTrigger value="audit">{t('admin.auditLogs')}</TabsTrigger>
             <TabsTrigger value="backup">{t('admin.backup')}</TabsTrigger>
+            <TabsTrigger value="settings">{t('admin.settings')}</TabsTrigger>
           </TabsList>
 
         <TabsContent value="treatments" className="mt-4">
@@ -405,6 +428,31 @@ const AdminPanel: React.FC = () => {
                 <Download className="me-2 h-4 w-4" />
                 {backupLoading ? t('common.loading') : t('admin.downloadBackup')}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('admin.settings')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t('admin.appointmentFee')}</label>
+                <p className="text-xs text-muted-foreground">{t('admin.appointmentFeeDesc')}</p>
+                <div className="flex items-center gap-2 max-w-xs">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={appointmentFee}
+                    onChange={(e) => setAppointmentFee(e.target.value)}
+                  />
+                  <Button onClick={handleSaveSettings} disabled={savingSettings}>
+                    {savingSettings ? t('common.loading') : t('common.save')}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -164,6 +164,11 @@ const translations: Record<string, Record<Language, string>> = {
   'license.expiringSoonDesc': { en: 'Your license will expire on', ar: 'سينتهي ترخيصك في' },
 
   // Admin extras
+  'admin.settings': { en: 'Settings', ar: 'الإعدادات' },
+  'admin.appointmentFee': { en: 'Appointment Fee', ar: 'رسوم الموعد' },
+  'admin.appointmentFeeDesc': { en: 'Default consultation fee auto-suggested when adding a payment.', ar: 'رسوم الاستشارة الافتراضية التي تظهر تلقائياً عند إضافة دفعة.' },
+  'payment.appointmentFeeHint': { en: 'Appointment fee', ar: 'رسوم الموعد' },
+  'admin.settingsSaved': { en: 'Settings saved', ar: 'تم حفظ الإعدادات' },
   'admin.auditLogs': { en: 'Audit Logs', ar: 'سجل العمليات' },
   'admin.action': { en: 'Action', ar: 'الإجراء' },
   'admin.entityType': { en: 'Entity', ar: 'الكيان' },

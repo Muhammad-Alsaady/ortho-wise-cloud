@@ -18,10 +18,16 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { checkAuthError } from '@/lib/api';
 
-const TIME_SLOTS: string[] = [];
+// Build time slots from 9 AM to 11:30 PM; values are 24H (stored in DB), labels are 12H AM/PM
+const TIME_SLOTS: { value: string; label: string }[] = [];
 for (let h = 9; h < 24; h++) {
-  TIME_SLOTS.push(`${String(h).padStart(2, '0')}:00`);
-  TIME_SLOTS.push(`${String(h).padStart(2, '0')}:30`);
+  for (const m of [0, 30]) {
+    const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    const label = `${h12}:${String(m).padStart(2, '0')} ${period}`;
+    TIME_SLOTS.push({ value, label });
+  }
 }
 
 interface Props {
@@ -41,6 +47,8 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   const [time, setTime] = useState('');
   const [doctors, setDoctors] = useState<any[]>([]);
   const [savingAppt, setSavingAppt] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [nextDateOpen, setNextDateOpen] = useState(false);
 
   // Treatments tab state
   const [treatments, setTreatments] = useState<any[]>([]);
@@ -57,6 +65,18 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   const [payNotes, setPayNotes] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
+  const [appointmentFee, setAppointmentFee] = useState(0);
+
+  // Fetch clinic appointment fee and pre-fill payment amount
+  useEffect(() => {
+    if (!clinicId) return;
+    supabase.from('clinics').select('appointment_fee').eq('id', clinicId).single()
+      .then(({ data }) => {
+        const fee = Number(data?.appointment_fee ?? 0);
+        setAppointmentFee(fee);
+        if (fee > 0) setPayAmount(String(fee));
+      });
+  }, [clinicId]);
 
   // Next visit tab state
   const [nextDoctor, setNextDoctor] = useState('');
@@ -310,15 +330,15 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">{t('payment.date')}</label>
-              <Popover>
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-start">
                     <CalendarIcon className="me-2 h-4 w-4" />
-                    {format(date, 'PPP')}
+                    {format(date, 'EEEE, MMMM d, yyyy')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={date} onSelect={(d) => d && setDate(d)} className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={date} onSelect={(d) => { if (d) { setDate(d); setDateOpen(false); } }} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>
@@ -328,7 +348,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
               <Select value={time} onValueChange={setTime}>
                 <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
                 <SelectContent>
-                  {TIME_SLOTS.map(slot => <SelectItem key={slot} value={slot}>{slot}</SelectItem>)}
+                  {TIME_SLOTS.map(slot => <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -419,6 +439,11 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value)}
                   />
+                  {appointmentFee > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {t('payment.appointmentFeeHint') || 'Appointment fee'}: <button type="button" className="text-primary underline" onClick={() => setPayAmount(String(appointmentFee))}>{appointmentFee}</button>
+                    </p>
+                  )}
                   <Select value={payMethod} onValueChange={setPayMethod}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -453,7 +478,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
                       ) : payments.map(p => (
                         <TableRow key={p.id}>
                           <TableCell className="font-medium">{p.amount}</TableCell>
-                          <TableCell>{format(new Date(p.created_at), 'PPP HH:mm')}</TableCell>
+                          <TableCell>{format(new Date(p.created_at), 'PPP h:mm a')}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -477,15 +502,15 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">{t('payment.date')}</label>
-              <Popover>
+              <Popover open={nextDateOpen} onOpenChange={setNextDateOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-start">
                     <CalendarIcon className="me-2 h-4 w-4" />
-                    {format(nextDate, 'PPP')}
+                    {format(nextDate, 'EEEE, MMMM d, yyyy')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={nextDate} onSelect={(d) => d && setNextDate(d)} className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={nextDate} onSelect={(d) => { if (d) { setNextDate(d); setNextDateOpen(false); } }} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>
@@ -495,7 +520,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
               <Select value={nextTime} onValueChange={setNextTime}>
                 <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
                 <SelectContent>
-                  {TIME_SLOTS.map(slot => <SelectItem key={slot} value={slot}>{slot}</SelectItem>)}
+                  {TIME_SLOTS.map(slot => <SelectItem key={slot.value} value={slot.value}>{slot.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
