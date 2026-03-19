@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Save, CheckCircle, Upload, ArrowLeft, Trash2 } from 'lucide-react';
 import { checkAuthError } from '@/lib/api';
+import { logInfo, logError } from '@/lib/logService';
 
 const DoctorVisit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -131,8 +132,10 @@ const DoctorVisit: React.FC = () => {
     });
 
     if (error) {
+      logError('ADD_TREATMENT_PLAN', 'treatment_plan', error, { visitId: id, treatmentId: treatment.id });
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
+      logInfo('ADD_TREATMENT_PLAN', 'treatment_plan', 'Treatment added to plan', { visitId: id, treatmentName: treatment.name });
       setSelectedTreatment('');
       fetchVisit();
     }
@@ -153,9 +156,11 @@ const DoctorVisit: React.FC = () => {
     try {
       await supabase.from('visits').update({ status: 'Completed' as const }).eq('id', id);
       await supabase.from('appointments').update({ status: 'Completed' as const }).eq('id', visit.appointment_id);
+      logInfo('COMPLETE_VISIT', 'visit', 'Visit completed', { visitId: id, appointmentId: visit.appointment_id });
       toast({ title: t('doctor.completeVisit') });
       navigate('/doctor-queue');
     } catch (err: any) {
+      logError('COMPLETE_VISIT', 'visit', err, { visitId: id });
       console.error('[DoctorVisit] handleCompleteVisit error:', err);
       toast({ title: 'Error', description: err?.message ?? 'Failed to complete visit', variant: 'destructive' });
     }

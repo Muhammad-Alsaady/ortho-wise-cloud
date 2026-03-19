@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { setLogContext } from "@/lib/logService";
 import type { User } from "@supabase/supabase-js";
 
 interface Profile {
@@ -37,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setProfile(null);
     setRole(null);
+    setLogContext(null, null);
   };
 
   const fetchUserData = async (userId: string) => {
@@ -57,7 +59,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profileRes.error) console.error("[Auth] profile fetch error:", profileRes.error);
       if (roleRes.error) console.error("[Auth] role fetch error:", roleRes.error);
 
-      if (profileRes.data) setProfile(profileRes.data as Profile);
+      if (profileRes.data) {
+        setProfile(profileRes.data as Profile);
+        setLogContext((profileRes.data as Profile).clinic_id, userId);
+      }
 
       if (roleRes.data && roleRes.data.length > 0) {
         const topRole = roleRes.data.reduce((best, current) => {

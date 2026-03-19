@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { checkAuthError } from '@/lib/api';
+import { logInfo, logError } from '@/lib/logService';
 
 interface Props {
   open: boolean;
@@ -91,8 +92,11 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
       treatment_plan_id: selectedPlan,
       amount: Number(amount),
     });
-    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    else {
+    if (error) {
+      logError('CREATE_PAYMENT', 'payment', error, { treatmentPlanId: selectedPlan, amount: Number(amount) });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      logInfo('CREATE_PAYMENT', 'payment', 'Payment recorded', { treatmentPlanId: selectedPlan, amount: Number(amount) });
       setAmount('');
       fetchData();
     }

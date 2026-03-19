@@ -176,6 +176,24 @@ const translations: Record<string, Record<Language, string>> = {
   'admin.downloadBackup': { en: 'Download Backup', ar: 'تحميل النسخة الاحتياطية' },
   'admin.backupDesc': { en: 'Download a full backup of your clinic data as JSON.', ar: 'تحميل نسخة احتياطية كاملة من بيانات عيادتك بصيغة JSON.' },
 
+  // System Logs (SuperAdmin)
+  'logs.title': { en: 'System Logs', ar: 'سجلات النظام' },
+  'logs.level': { en: 'Level', ar: 'المستوى' },
+  'logs.action': { en: 'Action', ar: 'الإجراء' },
+  'logs.entity': { en: 'Entity', ar: 'الكيان' },
+  'logs.message': { en: 'Message', ar: 'الرسالة' },
+  'logs.clinic': { en: 'Clinic', ar: 'العيادة' },
+  'logs.user': { en: 'User', ar: 'المستخدم' },
+  'logs.dateRange': { en: 'Date Range', ar: 'النطاق الزمني' },
+  'logs.from': { en: 'From', ar: 'من' },
+  'logs.to': { en: 'To', ar: 'إلى' },
+  'logs.allLevels': { en: 'All Levels', ar: 'جميع المستويات' },
+  'logs.allClinics': { en: 'All Clinics', ar: 'جميع العيادات' },
+  'logs.noLogs': { en: 'No logs found', ar: 'لا توجد سجلات' },
+  'logs.refresh': { en: 'Refresh', ar: 'تحديث' },
+  'logs.filters': { en: 'Filters', ar: 'التصفية' },
+  'nav.systemLogs': { en: 'System Logs', ar: 'سجلات النظام' },
+
   // Edit Appointment Modal
   'edit.tabAppointment': { en: 'Appointment', ar: 'الموعد' },
   'edit.tabTreatments': { en: 'Treatments', ar: 'العلاجات' },

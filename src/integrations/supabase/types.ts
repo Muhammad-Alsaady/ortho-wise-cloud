@@ -123,6 +123,50 @@ export type Database = {
           },
         ]
       }
+      logs: {
+        Row: {
+          id: string
+          clinic_id: string
+          user_id: string | null
+          level: string
+          action: string
+          entity: string
+          message: string
+          details: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          user_id?: string | null
+          level: string
+          action: string
+          entity: string
+          message: string
+          details?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          user_id?: string | null
+          level?: string
+          action?: string
+          entity?: string
+          message?: string
+          details?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logs_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinics: {
         Row: {
           address: string | null

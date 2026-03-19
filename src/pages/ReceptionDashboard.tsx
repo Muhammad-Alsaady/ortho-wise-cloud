@@ -18,6 +18,7 @@ import EditAppointmentModal from '@/components/modals/EditAppointmentModal';
 import PaymentModal from '@/components/modals/PaymentModal';
 import { useToast } from '@/hooks/use-toast';
 import { checkAuthError } from '@/lib/api';
+import { logInfo, logError } from '@/lib/logService';
 
 /** Convert "HH:mm" 24-hour string to "h:mm AM/PM" */
 function formatTime12(time24: string | null | undefined): string {
@@ -146,12 +147,15 @@ const ReceptionDashboard: React.FC = () => {
         .eq('id', appointmentId);
 
       if (error) {
+        logError('SEND_TO_DOCTOR', 'appointment', error, { appointmentId });
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
       } else {
+        logInfo('SEND_TO_DOCTOR', 'appointment', 'Patient sent to doctor queue', { appointmentId });
         toast({ title: t('reception.sendToDoctor') });
         fetchAppointments();
       }
     } catch (err: any) {
+      logError('SEND_TO_DOCTOR', 'appointment', err, { appointmentId });
       console.error('[ReceptionDashboard] handleSendToDoctor error:', err);
       toast({ title: 'Error', description: err?.message ?? 'Failed to send', variant: 'destructive' });
     }
@@ -167,12 +171,15 @@ const ReceptionDashboard: React.FC = () => {
         .eq('id', cancelTarget.id);
 
       if (error) {
+        logError('CANCEL_APPOINTMENT', 'appointment', error, { appointmentId: cancelTarget.id });
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
       } else {
+        logInfo('CANCEL_APPOINTMENT', 'appointment', 'Appointment cancelled', { appointmentId: cancelTarget.id });
         toast({ title: t('reception.appointmentCancelled') });
         fetchAppointments();
       }
     } catch (err: any) {
+      logError('CANCEL_APPOINTMENT', 'appointment', err, { appointmentId: cancelTarget.id });
       console.error('[ReceptionDashboard] handleCancelAppointment error:', err);
       toast({ title: 'Error', description: err?.message ?? 'Failed to cancel', variant: 'destructive' });
     } finally {

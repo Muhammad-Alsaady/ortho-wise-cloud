@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { 
-  CalendarDays, Users, Stethoscope, Settings, LogOut, Globe, Menu, X, BarChart3, Shield, User
+  CalendarDays, Users, Stethoscope, Settings, LogOut, Globe, Menu, X, BarChart3, Shield, User, ScrollText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }
     if (role === 'superadmin') {
       items.push({ path: '/superadmin', label: t('nav.superadmin'), icon: Shield });
+      items.push({ path: '/system-logs', label: t('nav.systemLogs'), icon: ScrollText });
     }
     return items;
   }, [role, t]);

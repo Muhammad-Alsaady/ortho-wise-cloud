@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { checkAuthError } from '@/lib/api';
+import { logInfo, logError } from '@/lib/logService';
 
 // Build time slots from 9 AM to 11:30 PM; values are 24H (stored in DB), labels are 12H AM/PM
 const TIME_SLOTS: { value: string; label: string }[] = [];
@@ -286,8 +287,10 @@ useEffect(() => {
     });
 
     if (error) {
+      logError('CREATE_APPOINTMENT', 'appointment', error, { patientId, doctorId });
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
+      logInfo('CREATE_APPOINTMENT', 'appointment', 'Appointment created', { patientId, doctorId, date: format(date, 'yyyy-MM-dd'), time });
       toast({ title: t('reception.newAppointment') });
       onClose();
     }

@@ -15,6 +15,7 @@ import { Plus, Edit, Download, UserPlus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AuditLogs from '@/components/AuditLogs';
 import { callManageUser, checkAuthError } from '@/lib/api';
+import { logInfo, logError } from '@/lib/logService';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -147,10 +148,12 @@ const AdminPanel: React.FC = () => {
     try {
       if (editingTreatment) {
         const { error } = await supabase.from('treatments').update({ name: treatmentName, price: Number(treatmentPrice) || 0 }).eq('id', editingTreatment.id);
-        if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+        if (error) { logError('UPDATE_TREATMENT', 'treatment', error, { treatmentId: editingTreatment.id }); toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+        logInfo('UPDATE_TREATMENT', 'treatment', 'Treatment updated', { treatmentId: editingTreatment.id, name: treatmentName });
       } else {
         const { error } = await supabase.from('treatments').insert({ clinic_id: effectiveClinicId, name: treatmentName, price: Number(treatmentPrice) || 0 });
-        if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+        if (error) { logError('CREATE_TREATMENT', 'treatment', error); toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+        logInfo('CREATE_TREATMENT', 'treatment', 'Treatment created', { name: treatmentName, price: Number(treatmentPrice) || 0 });
       }
       setTreatmentModal(false);
       setEditingTreatment(null);
@@ -158,6 +161,7 @@ const AdminPanel: React.FC = () => {
       setTreatmentPrice('');
       fetchData();
     } catch (err: any) {
+      logError('SAVE_TREATMENT', 'treatment', err);
       console.error('[AdminPanel] handleSaveTreatment error:', err);
       toast({ title: 'Error', description: err?.message ?? 'Failed to save treatment', variant: 'destructive' });
     }
@@ -176,11 +180,14 @@ const AdminPanel: React.FC = () => {
     try {
       const { error } = await supabase.from('treatments').delete().eq('id', deleteTreatmentTarget.id);
       if (error) {
+        logError('DELETE_TREATMENT', 'treatment', error, { treatmentId: deleteTreatmentTarget.id });
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
       } else {
+        logInfo('DELETE_TREATMENT', 'treatment', 'Treatment deleted', { treatmentId: deleteTreatmentTarget.id, name: deleteTreatmentTarget.name });
         fetchData();
       }
     } catch (err: any) {
+      logError('DELETE_TREATMENT', 'treatment', err, { treatmentId: deleteTreatmentTarget.id });
       console.error('[AdminPanel] handleDeleteTreatment error:', err);
       toast({ title: 'Error', description: err?.message ?? 'Failed to delete', variant: 'destructive' });
     } finally {
@@ -199,11 +206,13 @@ const AdminPanel: React.FC = () => {
         clinic_id: effectiveClinicId,
         role: values.role,
       });
+      logInfo('CREATE_USER', 'auth', `${values.role} user created`, { email: values.email, role: values.role });
       toast({ title: `${values.role === 'doctor' ? 'Doctor' : 'Receptionist'} created successfully` });
       setUserModal(false);
       userFormMethods.reset();
       fetchData();
     } catch (err: any) {
+      logError('CREATE_USER', 'auth', err, { email: values.email, role: values.role });
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
@@ -213,9 +222,11 @@ const AdminPanel: React.FC = () => {
     setDeactivateLoading(true);
     try {
       await callManageUser('delete_user', { user_id: deactivateTarget.user_id });
+      logInfo('DEACTIVATE_USER', 'auth', 'User deactivated', { userId: deactivateTarget.user_id, name: deactivateTarget.name });
       toast({ title: t('admin.userDeactivated') });
       fetchData();
     } catch (err: any) {
+      logError('DEACTIVATE_USER', 'auth', err, { userId: deactivateTarget.user_id });
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
     setDeactivateLoading(false);

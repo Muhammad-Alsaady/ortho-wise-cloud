@@ -20,6 +20,7 @@ import DoctorVisit from "@/pages/DoctorVisit";
 import AdminPanel from "@/pages/AdminPanel";
 import Reports from "@/pages/Reports";
 import SuperAdmin from "@/pages/SuperAdmin";
+import SystemLogs from "@/pages/SystemLogs";
 import Profile from "@/pages/Profile";
 
 const queryClient = new QueryClient();
@@ -93,7 +94,10 @@ const AppRoutes = () => {
 
           {/* Superadmin */}
           {role === "superadmin" && (
-            <Route path="/superadmin" element={<SuperAdmin />} />
+            <>
+              <Route path="/superadmin" element={<SuperAdmin />} />
+              <Route path="/system-logs" element={<SystemLogs />} />
+            </>
           )}
 
           {/* Fallback */}

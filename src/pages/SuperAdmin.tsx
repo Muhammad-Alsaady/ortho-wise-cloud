@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Building2, Users, Edit, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { callManageUser, checkAuthError } from '@/lib/api';
+import { logInfo, logError } from '@/lib/logService';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -104,10 +105,12 @@ const SuperAdmin: React.FC = () => {
       if (editingClinic) {
         const { error } = await supabase.from('clinics').update(payload).eq('id', editingClinic.id);
         if (error) throw error;
+        logInfo('UPDATE_CLINIC', 'clinic', 'Clinic updated', { clinicId: editingClinic.id, name: clinicForm.name });
         toast({ title: 'Clinic updated' });
       } else {
         const { error } = await supabase.from('clinics').insert(payload);
         if (error) throw error;
+        logInfo('CREATE_CLINIC', 'clinic', 'Clinic created', { name: clinicForm.name });
         toast({ title: 'Clinic created' });
       }
       setClinicModal(false);
@@ -115,6 +118,7 @@ const SuperAdmin: React.FC = () => {
       setClinicForm({ name: '', address: '', phone: '', license_expiry: '', plan_type: 'basic' });
       fetchClinics();
     } catch (err: any) {
+      logError('SAVE_CLINIC', 'clinic', err);
       console.error('[SuperAdmin] handleSaveClinic error:', err);
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
@@ -126,11 +130,13 @@ const SuperAdmin: React.FC = () => {
   const handleCreateAdmin = async (values: z.infer<typeof adminSchema>) => {
     try {
       await callManageUser('create_user', { ...values, role: 'admin' });
+      logInfo('CREATE_ADMIN', 'auth', 'Admin user created', { email: values.email, clinicId: values.clinic_id });
       toast({ title: 'Admin user created successfully' });
       setUserModal(false);
       adminFormMethods.reset();
       fetchUsers(selectedClinicId || undefined);
     } catch (err: any) {
+      logError('CREATE_ADMIN', 'auth', err, { email: values.email });
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
