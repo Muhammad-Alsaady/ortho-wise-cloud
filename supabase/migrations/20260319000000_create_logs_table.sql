@@ -28,7 +28,7 @@ CREATE POLICY "superadmin_read_all_logs" ON public.logs
 CREATE POLICY "admin_read_clinic_logs" ON public.logs
   FOR SELECT
   USING (
-    clinic_id = public.get_user_clinic_id()
+    clinic_id = public.get_user_clinic_id(auth.uid())
     AND (public.has_role(auth.uid(), 'admin'))
   );
 
@@ -36,6 +36,6 @@ CREATE POLICY "admin_read_clinic_logs" ON public.logs
 CREATE POLICY "authenticated_insert_logs" ON public.logs
   FOR INSERT
   WITH CHECK (
-    clinic_id = public.get_user_clinic_id()
+    clinic_id = public.get_user_clinic_id(auth.uid())
     OR public.has_role(auth.uid(), 'superadmin')
   );
