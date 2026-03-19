@@ -77,6 +77,7 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
   const [time, setTime] = useState('');
   const [saving, setSaving] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
+  const [clinicFee, setClinicFee] = useState(0);
 
   // Validation
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -99,6 +100,13 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
       setSubmitted(false);
     }
   }, [open]);
+
+  // Fetch clinic appointment fee
+  useEffect(() => {
+    if (!clinicId) return;
+    supabase.from('clinics').select('appointment_fee').eq('id', clinicId).single()
+      .then(({ data }) => { setClinicFee(Number(data?.appointment_fee ?? 0)); });
+  }, [clinicId]);
 
 // Load doctors for the clinic
 useEffect(() => {
@@ -284,6 +292,7 @@ useEffect(() => {
       patient_id: patientId,
       patient_name: finalName,
       patient_phone: finalPhone || null,
+      appointment_fee: clinicFee,
     });
 
     if (error) {

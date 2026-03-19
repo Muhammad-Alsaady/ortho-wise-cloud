@@ -65,18 +65,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   const [payNotes, setPayNotes] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
-  const [appointmentFee, setAppointmentFee] = useState(0);
-
-  // Fetch clinic appointment fee and pre-fill payment amount
-  useEffect(() => {
-    if (!clinicId) return;
-    supabase.from('clinics').select('appointment_fee').eq('id', clinicId).single()
-      .then(({ data }) => {
-        const fee = Number(data?.appointment_fee ?? 0);
-        setAppointmentFee(fee);
-        if (fee > 0) setPayAmount(String(fee));
-      });
-  }, [clinicId]);
+  const appointmentFee = Number(appointment?.appointment_fee ?? 0);
 
   // Next visit tab state
   const [nextDoctor, setNextDoctor] = useState('');
@@ -180,7 +169,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   useEffect(() => { fetchVisitData(); }, [fetchVisitData]);
 
   // Financial summary
-  const totalBilled = plans.reduce((s, p) => s + Number(p.price) - Number(p.discount), 0);
+  const totalBilled = plans.reduce((s, p) => s + Number(p.price) - Number(p.discount), 0) + Number(appointment?.appointment_fee ?? 0);
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
   const balance = totalBilled - totalPaid;
 
@@ -260,6 +249,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
       patient_id: appointment.patient_id,
       patient_name: appointment.patient?.name || appointment.patient_name,
       patient_phone: appointment.patient?.phone || appointment.patient_phone,
+      appointment_fee: appointmentFee,
     });
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
