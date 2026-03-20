@@ -51,10 +51,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     try {
-      const [profileRes, roleRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", userId),
-      ]);
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("fetchUserData_timeout")), 10_000)
+      );
+
+      const [profileRes, roleRes] = await Promise.race([
+        Promise.all([
+          supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
+          supabase.from("user_roles").select("role").eq("user_id", userId),
+        ]),
+        timeout.then(() => { throw new Error("fetchUserData_timeout"); }),
+      ]) as [any, any];
 
       if (profileRes.error) console.error("[Auth] profile fetch error:", profileRes.error);
       if (roleRes.error) console.error("[Auth] role fetch error:", roleRes.error);
@@ -165,7 +172,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(currentUser);
 
         if (currentUser) {
-          await fetchUserData(currentUser.id);
+          // Timeout-protected fetch — never block indefinitely
+          try {
+            await Promise.race([
+              fetchUserData(currentUser.id),
+              new Promise<void>((resolve) => setTimeout(resolve, 10_000)),
+            ]);
+          } catch {
+            // swallow — fetchUserData already logs errors
+          }
         } else {
           clearAuth();
         }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,9 +52,12 @@ const ReceptionDashboard: React.FC = () => {
   const [paymentAppointment, setPaymentAppointment] = useState<any>(null);
   const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const fetchRef = useRef(0); // dedup concurrent fetches
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     if (!clinicId) return;
+    const fetchId = ++fetchRef.current;
     setLoading(true);
 
     try {
@@ -69,6 +72,9 @@ const ReceptionDashboard: React.FC = () => {
         .eq('clinic_id', clinicId)
         .eq('appointment_date', dateStr)
         .order('appointment_time', { ascending: true });
+
+      // Stale response — a newer fetch was started
+      if (fetchId !== fetchRef.current) return;
 
       if (error) {
         if (checkAuthError(error, 'Reception.fetchAppointments')) return;
@@ -87,6 +93,8 @@ const ReceptionDashboard: React.FC = () => {
           .select('*')
           .in('appointment_id', aptIds);
 
+        if (fetchId !== fetchRef.current) return;
+
         (summaries || []).forEach(s => {
           summaryMap[s.appointment_id] = s;
         });
@@ -104,13 +112,20 @@ const ReceptionDashboard: React.FC = () => {
 
       setAppointments(enriched);
     } catch (err: any) {
+      if (fetchId !== fetchRef.current) return;
       console.error('[ReceptionDashboard] fetchAppointments exception:', err);
       toast({ title: 'Error', description: err?.message ?? 'Failed to load appointments', variant: 'destructive' });
       setAppointments([]);
     } finally {
-      setLoading(false);
+      if (fetchId === fetchRef.current) setLoading(false);
     }
-  };
+  }, [clinicId, date]);
+
+  /** Debounced fetch — collapses rapid-fire realtime events into a single call */
+  const debouncedFetch = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchAppointments(), 300);
+  }, [fetchAppointments]);
 
   useEffect(() => {
     fetchAppointments();
@@ -123,12 +138,15 @@ const ReceptionDashboard: React.FC = () => {
         table: 'appointments',
         filter: `clinic_id=eq.${clinicId}`,
       }, () => {
-        fetchAppointments();
+        debouncedFetch();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [clinicId, date]);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      supabase.removeChannel(channel);
+    };
+  }, [clinicId, date, fetchAppointments, debouncedFetch]);
 
   const filtered = useMemo(() => {
     if (!search) return appointments;
@@ -152,7 +170,6 @@ const ReceptionDashboard: React.FC = () => {
       } else {
         logInfo('SEND_TO_DOCTOR', 'appointment', 'Patient sent to doctor queue', { appointmentId });
         toast({ title: t('reception.sendToDoctor') });
-        fetchAppointments();
       }
     } catch (err: any) {
       logError('SEND_TO_DOCTOR', 'appointment', err, { appointmentId });
@@ -176,7 +193,6 @@ const ReceptionDashboard: React.FC = () => {
       } else {
         logInfo('CANCEL_APPOINTMENT', 'appointment', 'Appointment cancelled', { appointmentId: cancelTarget.id });
         toast({ title: t('reception.appointmentCancelled') });
-        fetchAppointments();
       }
     } catch (err: any) {
       logError('CANCEL_APPOINTMENT', 'appointment', err, { appointmentId: cancelTarget.id });
@@ -294,7 +310,7 @@ const ReceptionDashboard: React.FC = () => {
       {showAppointmentModal && (
         <AppointmentModal
           open={showAppointmentModal}
-          onClose={() => { setShowAppointmentModal(false); fetchAppointments(); }}
+          onClose={() => { setShowAppointmentModal(false); }}
         />
       )}
 
@@ -302,7 +318,7 @@ const ReceptionDashboard: React.FC = () => {
         <EditAppointmentModal
           open={!!editAppointment}
           appointment={editAppointment}
-          onClose={() => { setEditAppointment(null); fetchAppointments(); }}
+          onClose={() => { setEditAppointment(null); }}
         />
       )}
 
@@ -310,7 +326,7 @@ const ReceptionDashboard: React.FC = () => {
         <PaymentModal
           open={!!paymentAppointment}
           appointment={paymentAppointment}
-          onClose={() => { setPaymentAppointment(null); fetchAppointments(); }}
+          onClose={() => { setPaymentAppointment(null); }}
         />
       )}
 

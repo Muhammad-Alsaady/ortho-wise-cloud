@@ -105,7 +105,8 @@ const AppointmentModal: React.FC<Props> = ({ open, onClose }) => {
   useEffect(() => {
     if (!clinicId) return;
     supabase.from('clinics').select('appointment_fee').eq('id', clinicId).single()
-      .then(({ data }) => { setClinicFee(Number(data?.appointment_fee ?? 0)); });
+      .then(({ data }) => { setClinicFee(Number(data?.appointment_fee ?? 0)); })
+      .catch((err) => { console.error('[AppointmentModal] clinic fee fetch error:', err); });
   }, [clinicId]);
 
 // Load doctors for the clinic
