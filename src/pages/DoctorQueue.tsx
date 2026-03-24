@@ -9,10 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { UserCheck, Clock } from 'lucide-react';
+import { UserCheck, Clock, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { checkAuthError } from '@/lib/api';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /** Convert "HH:mm" 24-hour string to "h:mm AM/PM" */
 function formatTime12(time24: string | null | undefined): string {
@@ -41,6 +43,8 @@ const DoctorQueue: React.FC = () => {
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingAll, setLoadingAll] = useState(true);
+  const [appointmentDate, setAppointmentDate] = useState<Date>(new Date());
+  const [dateOpen, setDateOpen] = useState(false);
 
   const fetchQueue = async () => {
     if (!profile || !clinicId) return;
@@ -76,14 +80,14 @@ const DoctorQueue: React.FC = () => {
     if (!profile || !clinicId) return;
     setLoadingAll(true);
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const dateStr = format(appointmentDate, 'yyyy-MM-dd');
 
       const { data, error } = await supabase
         .from('appointments')
         .select(`*, patient:patients(name, phone, age)`)
         .eq('clinic_id', clinicId)
         .eq('doctor_id', profile.id)
-        .eq('appointment_date', today)
+        .eq('appointment_date', dateStr)
         .order('appointment_time', { ascending: true });
 
       if (error) {
@@ -112,7 +116,7 @@ const DoctorQueue: React.FC = () => {
       }, () => { fetchQueue(); fetchAllAppointments(); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile, clinicId]);
+  }, [profile, clinicId, appointmentDate]);
 
   const handleAcceptPatient = async (appointment: any) => {
     try {
@@ -216,8 +220,20 @@ const DoctorQueue: React.FC = () => {
           </div>
         </TabsContent>
 
-        {/* My Appointments tab — all statuses for today */}
-        <TabsContent value="appointments" className="mt-4">
+        {/* My Appointments tab — filterable by date */}
+        <TabsContent value="appointments" className="mt-4 space-y-4">
+          <Popover open={dateOpen} onOpenChange={setDateOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[260px] justify-start text-start font-normal")}>
+                <CalendarIcon className="me-2 h-4 w-4" />
+                {format(appointmentDate, 'EEEE, MMMM d, yyyy')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={appointmentDate} onSelect={(d) => { if (d) { setAppointmentDate(d); setDateOpen(false); } }} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+
           <Card>
             <CardContent className="p-0">
               <Table>
