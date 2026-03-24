@@ -60,6 +60,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
 
   // Payments tab state
   const [payments, setPayments] = useState<any[]>([]);
+  const [aptFeePayments, setAptFeePayments] = useState<any[]>([]);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('Cash');
   const [payNotes, setPayNotes] = useState('');
@@ -124,6 +125,14 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
     if (!appointment) return;
 
     try {
+      // Fetch appointment-fee payments
+      const { data: aptFeePay } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('appointment_id', appointment.id)
+        .order('created_at', { ascending: false });
+      setAptFeePayments(aptFeePay || []);
+
       const { data: visits, error: vErr } = await supabase
         .from('visits')
         .select('id')
@@ -169,8 +178,9 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   useEffect(() => { fetchVisitData(); }, [fetchVisitData]);
 
   // Financial summary
+  const aptFeePaid = aptFeePayments.reduce((s, p) => s + Number(p.amount), 0);
   const totalBilled = plans.reduce((s, p) => s + Number(p.price) - Number(p.discount), 0) + Number(appointment?.appointment_fee ?? 0);
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
+  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0) + aptFeePaid;
   const balance = totalBilled - totalPaid;
 
   // Handlers
@@ -180,13 +190,21 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
       return;
     }
     setSavingAppt(true);
+
+    // Reset status to Booked when rescheduling a Completed/Cancelled appointment
+    const isRescheduling = appointment.status === 'Completed' || appointment.status === 'Cancelled';
+    const updatePayload: Record<string, any> = {
+      doctor_id: doctorId,
+      appointment_date: format(date, 'yyyy-MM-dd'),
+      appointment_time: time,
+    };
+    if (isRescheduling) {
+      updatePayload.status = 'Booked';
+    }
+
     const { error } = await supabase
       .from('appointments')
-      .update({
-        doctor_id: doctorId,
-        appointment_date: format(date, 'yyyy-MM-dd'),
-        appointment_time: time,
-      })
+      .update(updatePayload)
       .eq('id', appointment.id);
 
     if (error) {
@@ -250,6 +268,7 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
       patient_name: appointment.patient?.name || appointment.patient_name,
       patient_phone: appointment.patient?.phone || appointment.patient_phone,
       appointment_fee: appointmentFee,
+      status: 'Booked' as const,
     });
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });

@@ -247,21 +247,24 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          appointment_id: string | null
           created_at: string
           id: string
-          treatment_plan_id: string
+          treatment_plan_id: string | null
         }
         Insert: {
           amount?: number
+          appointment_id?: string | null
           created_at?: string
           id?: string
-          treatment_plan_id: string
+          treatment_plan_id?: string | null
         }
         Update: {
           amount?: number
+          appointment_id?: string | null
           created_at?: string
           id?: string
-          treatment_plan_id?: string
+          treatment_plan_id?: string | null
         }
         Relationships: [
           {
@@ -269,6 +272,13 @@ export type Database = {
             columns: ["treatment_plan_id"]
             isOneToOne: false
             referencedRelation: "treatment_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
         ]

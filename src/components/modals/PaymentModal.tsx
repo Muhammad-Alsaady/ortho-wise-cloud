@@ -13,6 +13,8 @@ import { format } from 'date-fns';
 import { checkAuthError } from '@/lib/api';
 import { logInfo, logError } from '@/lib/logService';
 
+const APPOINTMENT_FEE_KEY = '__appointment_fee__';
+
 interface Props {
   open: boolean;
   appointment: any;
@@ -26,6 +28,7 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
 
   const [plans, setPlans] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [aptFeePayments, setAptFeePayments] = useState<any[]>([]);
   const [amount, setAmount] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('');
   const [discountPlan, setDiscountPlan] = useState('');
@@ -34,13 +37,21 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
 
   const fetchData = async () => {
     try {
+      // Fetch appointment-fee payments
+      const { data: aptFeePay } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('appointment_id', appointment.id)
+        .order('created_at', { ascending: false });
+      setAptFeePayments(aptFeePay || []);
+
       const { data: visits, error: vErr } = await supabase
         .from('visits')
         .select('id')
         .eq('appointment_id', appointment.id);
 
       if (vErr) { checkAuthError(vErr, 'PaymentModal.visits'); return; }
-      if (!visits || visits.length === 0) return;
+      if (!visits || visits.length === 0) { setPlans([]); setPayments([]); return; }
 
       const visitIds = visits.map(v => v.id);
       const { data: plansData, error: plErr } = await supabase
@@ -60,6 +71,8 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
           .order('created_at', { ascending: false });
         if (payErr) checkAuthError(payErr, 'PaymentModal.payments');
         setPayments(paymentsData || []);
+      } else {
+        setPayments([]);
       }
     } catch (err) {
       console.error('[PaymentModal] fetchData exception:', err);
@@ -69,27 +82,58 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
   useEffect(() => { fetchData(); }, [appointment]);
 
   const appointmentFee = Number(appointment?.appointment_fee ?? 0);
-  const totalBilled = plans.reduce((s, p) => s + Number(p.price) - Number(p.discount), 0) + appointmentFee;
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
+  const aptFeePaid = aptFeePayments.reduce((s, p) => s + Number(p.amount), 0);
+  const treatmentBilled = plans.reduce((s, p) => s + Number(p.price) - Number(p.discount), 0);
+  const totalBilled = treatmentBilled + appointmentFee;
+  const treatmentPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
+  const totalPaid = treatmentPaid + aptFeePaid;
   const balance = totalBilled - totalPaid;
 
   const handleAddPayment = async () => {
     if (!selectedPlan || !amount) return;
     setSaving(true);
-    const { error } = await supabase.from('payments').insert({
-      treatment_plan_id: selectedPlan,
-      amount: Number(amount),
-    });
-    if (error) {
-      logError('CREATE_PAYMENT', 'payment', error, { treatmentPlanId: selectedPlan, amount: Number(amount) });
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+
+    if (selectedPlan === APPOINTMENT_FEE_KEY) {
+      // Record payment against appointment fee
+      const { error } = await supabase.from('payments').insert({
+        appointment_id: appointment.id,
+        amount: Number(amount),
+      });
+      if (error) {
+        logError('CREATE_PAYMENT', 'payment', error, { appointmentId: appointment.id, amount: Number(amount) });
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        logInfo('CREATE_PAYMENT', 'payment', 'Appointment fee payment recorded', { appointmentId: appointment.id, amount: Number(amount) });
+        setAmount('');
+        setSelectedPlan('');
+        fetchData();
+      }
     } else {
-      logInfo('CREATE_PAYMENT', 'payment', 'Payment recorded', { treatmentPlanId: selectedPlan, amount: Number(amount) });
-      setAmount('');
-      fetchData();
+      // Record payment against treatment plan
+      const { error } = await supabase.from('payments').insert({
+        treatment_plan_id: selectedPlan,
+        amount: Number(amount),
+      });
+      if (error) {
+        logError('CREATE_PAYMENT', 'payment', error, { treatmentPlanId: selectedPlan, amount: Number(amount) });
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        logInfo('CREATE_PAYMENT', 'payment', 'Payment recorded', { treatmentPlanId: selectedPlan, amount: Number(amount) });
+        setAmount('');
+        setSelectedPlan('');
+        fetchData();
+      }
     }
     setSaving(false);
   };
+
+  // Auto-fill amount when appointment fee is selected
+  useEffect(() => {
+    if (selectedPlan === APPOINTMENT_FEE_KEY && appointmentFee > 0) {
+      const remaining = appointmentFee - aptFeePaid;
+      if (remaining > 0) setAmount(String(remaining));
+    }
+  }, [selectedPlan, appointmentFee, aptFeePaid]);
 
   const handleAddDiscount = async () => {
     if (!discountPlan || !discountAmount) return;
@@ -107,6 +151,14 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
     }
     setSaving(false);
   };
+
+  const allPayments = [
+    ...aptFeePayments.map(p => ({ ...p, label: t('payment.appointmentFeePaid') })),
+    ...payments.map(p => {
+      const plan = plans.find(pl => pl.id === p.treatment_plan_id);
+      return { ...p, label: plan?.treatment?.name || '' };
+    }),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
@@ -142,6 +194,11 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
             <Select value={selectedPlan} onValueChange={setSelectedPlan}>
               <SelectTrigger><SelectValue placeholder={t('doctor.treatment')} /></SelectTrigger>
               <SelectContent>
+                {appointmentFee > 0 && (
+                  <SelectItem value={APPOINTMENT_FEE_KEY}>
+                    {t('payment.appointmentFeeLabel')} ({appointmentFee})
+                  </SelectItem>
+                )}
                 {plans.map(p => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.treatment?.name} ({Number(p.price) - Number(p.discount)})
@@ -150,11 +207,6 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
               </SelectContent>
             </Select>
             <Input type="number" placeholder={t('payment.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} />
-            {appointmentFee > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {t('payment.appointmentFeeHint') || 'Appointment fee'}: <button type="button" className="text-primary underline" onClick={() => setAmount(String(appointmentFee))}>{appointmentFee}</button>
-              </p>
-            )}
             <Button className="w-full" onClick={handleAddPayment} disabled={saving || !selectedPlan || !amount}>
               {t('payment.addPayment')}
             </Button>
@@ -182,15 +234,17 @@ const PaymentModal: React.FC<Props> = ({ open, appointment, onClose }) => {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('payment.date')}</TableHead>
+                  <TableHead>{t('doctor.treatment')}</TableHead>
                   <TableHead>{t('payment.amount')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payments.length === 0 ? (
-                  <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
-                ) : payments.map(p => (
+                {allPayments.length === 0 ? (
+                  <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
+                ) : allPayments.map(p => (
                   <TableRow key={p.id}>
                     <TableCell>{format(new Date(p.created_at), 'PPP h:mm a')}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.label}</TableCell>
                     <TableCell className="font-medium">{p.amount}</TableCell>
                   </TableRow>
                 ))}

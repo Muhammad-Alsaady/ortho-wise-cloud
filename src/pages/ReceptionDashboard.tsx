@@ -286,7 +286,7 @@ const ReceptionDashboard: React.FC = () => {
                           {t('reception.sendToDoctor')}
                         </Button>
                       )}
-                      {(apt.status === 'WithDoctor' || apt.status === 'Completed') && apt.totalBilled > 0 && (
+                      {(apt.status === 'WithDoctor' || apt.status === 'Completed') && (apt.totalBilled > 0 || Number(apt.appointment_fee ?? 0) > 0) && (
                         <Button size="sm" variant="outline" onClick={() => setPaymentAppointment(apt)}>
                           <CreditCard className="h-3 w-3 me-1" />
                           {t('reception.payment')}
