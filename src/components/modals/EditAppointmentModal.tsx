@@ -425,74 +425,90 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
 
           {/* ===== PAYMENTS TAB ===== */}
           <TabsContent value="payments" className="space-y-4 mt-4">
-            {plans.length === 0 ? (
+            {plans.length === 0 && aptFeePayments.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">{t('common.noData')}</p>
             ) : (
               <>
-                {/* Add payment form */}
-                <fieldset className="space-y-3 rounded-lg border border-border p-3">
-                  <legend className="px-2 text-sm font-semibold">{t('payment.addPayment')}</legend>
-                  <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-                    <SelectTrigger><SelectValue placeholder={t('doctor.treatment')} /></SelectTrigger>
-                    <SelectContent>
-                      {plans.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.treatment?.name} ({Number(p.price) - Number(p.discount)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    placeholder={t('payment.amount')}
-                    value={payAmount}
-                    onChange={(e) => setPayAmount(e.target.value)}
-                  />
-                  {appointmentFee > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('payment.appointmentFeeHint') || 'Appointment fee'}: <button type="button" className="text-primary underline" onClick={() => setPayAmount(String(appointmentFee))}>{appointmentFee}</button>
-                    </p>
-                  )}
-                  <Select value={payMethod} onValueChange={setPayMethod}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Cash">{t('edit.cash')}</SelectItem>
-                      <SelectItem value="Card">{t('edit.card')}</SelectItem>
-                      <SelectItem value="Transfer">{t('edit.transfer')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder={t('edit.paymentNotes')}
-                    value={payNotes}
-                    onChange={(e) => setPayNotes(e.target.value)}
-                  />
-                  <Button className="w-full" onClick={handleAddPayment} disabled={savingPayment || !selectedPlan || !payAmount}>
-                    {t('payment.addPayment')}
-                  </Button>
-                </fieldset>
+                {/* Add payment form — only when treatment plans exist */}
+                {plans.length > 0 && (
+                  <fieldset className="space-y-3 rounded-lg border border-border p-3">
+                    <legend className="px-2 text-sm font-semibold">{t('payment.addPayment')}</legend>
+                    <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                      <SelectTrigger><SelectValue placeholder={t('doctor.treatment')} /></SelectTrigger>
+                      <SelectContent>
+                        {plans.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.treatment?.name} ({Number(p.price) - Number(p.discount)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      placeholder={t('payment.amount')}
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(e.target.value)}
+                    />
+                    {appointmentFee > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {t('payment.appointmentFeeHint') || 'Appointment fee'}: <button type="button" className="text-primary underline" onClick={() => setPayAmount(String(appointmentFee))}>{appointmentFee}</button>
+                      </p>
+                    )}
+                    <Select value={payMethod} onValueChange={setPayMethod}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cash">{t('edit.cash')}</SelectItem>
+                        <SelectItem value="Card">{t('edit.card')}</SelectItem>
+                        <SelectItem value="Transfer">{t('edit.transfer')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder={t('edit.paymentNotes')}
+                      value={payNotes}
+                      onChange={(e) => setPayNotes(e.target.value)}
+                    />
+                    <Button className="w-full" onClick={handleAddPayment} disabled={savingPayment || !selectedPlan || !payAmount}>
+                      {t('payment.addPayment')}
+                    </Button>
+                  </fieldset>
+                )}
 
-                {/* Payment history */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold">{t('payment.history')}</h4>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('payment.amount')}</TableHead>
-                        <TableHead>{t('payment.date')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {payments.length === 0 ? (
-                        <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
-                      ) : payments.map(p => (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-medium">{p.amount}</TableCell>
-                          <TableCell>{format(new Date(p.created_at), 'PPP h:mm a')}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                {/* Payment history — combines treatment-plan payments and appointment-fee payments */}
+                {(() => {
+                  const allPayments = [
+                    ...aptFeePayments.map(p => ({ ...p, label: t('payment.appointmentFeePaid') })),
+                    ...payments.map(p => {
+                      const plan = plans.find(pl => pl.id === p.treatment_plan_id);
+                      return { ...p, label: plan?.treatment?.name || '' };
+                    }),
+                  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+                  return (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold">{t('payment.history')}</h4>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('payment.amount')}</TableHead>
+                            <TableHead>{t('doctor.treatment')}</TableHead>
+                            <TableHead>{t('payment.date')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {allPayments.length === 0 ? (
+                            <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
+                          ) : allPayments.map(p => (
+                            <TableRow key={p.id}>
+                              <TableCell className="font-medium">{p.amount}</TableCell>
+                              <TableCell className="text-muted-foreground">{p.label}</TableCell>
+                              <TableCell>{format(new Date(p.created_at), 'PPP h:mm a')}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </TabsContent>

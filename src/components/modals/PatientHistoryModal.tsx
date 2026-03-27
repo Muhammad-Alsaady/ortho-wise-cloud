@@ -74,15 +74,25 @@ const PatientHistoryModal: React.FC<Props> = ({ open, patient, onClose }) => {
           }
         }
 
+        // Fetch appointment-fee payments (stored with appointment_id, not treatment_plan_id)
+        let aptFeePayments: any[] = [];
+        const { data: afp, error: afpErr } = await supabase
+          .from('payments')
+          .select('appointment_id, amount')
+          .in('appointment_id', aptIds);
+        if (afpErr) checkAuthError(afpErr, 'PatientHistory.aptFeePayments');
+        aptFeePayments = afp || [];
+
         const enriched = appointments.map(apt => {
           const aptVisits = (visits || []).filter(v => v.appointment_id === apt.id);
           const aptVisitIds = aptVisits.map(v => v.id);
           const aptPlans = plans.filter(p => aptVisitIds.includes(p.visit_id));
           const aptPlanIds = aptPlans.map(p => p.id);
           const aptPayments = payments.filter(p => aptPlanIds.includes(p.treatment_plan_id));
+          const aptFeePaymentsForApt = aptFeePayments.filter(p => p.appointment_id === apt.id);
 
-          const totalBilled = aptPlans.reduce((s: number, p: any) => s + Number(p.price) - Number(p.discount), 0);
-          const totalPaid = aptPayments.reduce((s: number, p: any) => s + Number(p.amount), 0);
+          const totalBilled = aptPlans.reduce((s: number, p: any) => s + Number(p.price) - Number(p.discount), 0) + Number(apt.appointment_fee || 0);
+          const totalPaid = aptPayments.reduce((s: number, p: any) => s + Number(p.amount), 0) + aptFeePaymentsForApt.reduce((s: number, p: any) => s + Number(p.amount), 0);
           const treatmentNames = aptPlans.map((p: any) => p.treatment?.name).filter(Boolean).join(', ');
 
           return { ...apt, treatmentNames, totalBilled, totalPaid, balance: totalBilled - totalPaid };
