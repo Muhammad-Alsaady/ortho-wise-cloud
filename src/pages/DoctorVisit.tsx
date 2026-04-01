@@ -78,13 +78,16 @@ const DoctorVisit: React.FC = () => {
           .select('*')
           .in('treatment_plan_id', planIds);
 
+        // Images are now stored as base64 data-URLs directly in image_url.
+        // For legacy records that have a Storage file path, attempt a signed URL
+        // as a best-effort fallback so old visits still display what they can.
         const resolvedImages = await Promise.all((imgs || []).map(async (img) => {
+          if (!img.image_url) return img;
+          if (img.image_url.startsWith('data:') || img.image_url.startsWith('http')) return img;
+          // Legacy Supabase Storage path — try signed URL
           try {
-            if (img.image_url && !img.image_url.startsWith('http')) {
-              const { data } = await supabase.storage.from('treatment-images').createSignedUrl(img.image_url, 3600);
-              return { ...img, image_url: data?.signedUrl || img.image_url };
-            }
-            return img;
+            const { data } = await supabase.storage.from('treatment-images').createSignedUrl(img.image_url, 3600);
+            return { ...img, image_url: data?.signedUrl || img.image_url };
           } catch {
             return img;
           }
@@ -166,25 +169,49 @@ const DoctorVisit: React.FC = () => {
     }
   };
 
+  /** Compress an image file to a base64 JPEG data-URL (max 1200 px wide, quality 0.78). */
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const MAX = 1200;
+          const scale = img.width > MAX ? MAX / img.width : 1;
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.78));
+        };
+        img.src = ev.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || treatmentPlans.length === 0) return;
 
-    const filePath = `${clinicId}/${id}/${Date.now()}_${file.name}`;
-    const { error: uploadError } = await supabase.storage.from('treatment-images').upload(filePath, file);
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = '';
 
-    if (uploadError) {
-      toast({ title: 'Error', description: uploadError.message, variant: 'destructive' });
-      return;
+    try {
+      const base64 = await compressImage(file);
+      const { error } = await supabase.from('treatment_images').insert({
+        treatment_plan_id: treatmentPlans[0].id,
+        image_url: base64,
+      });
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        fetchVisit();
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message ?? 'Failed to process image', variant: 'destructive' });
     }
-
-    // Store the file path (not a public URL) since bucket is private
-    await supabase.from('treatment_images').insert({
-      treatment_plan_id: treatmentPlans[0].id,
-      image_url: filePath,
-    });
-
-    fetchVisit();
   };
 
   const handleDeletePlan = async () => {
