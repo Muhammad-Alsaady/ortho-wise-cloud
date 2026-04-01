@@ -142,11 +142,13 @@ const DoctorQueue: React.FC = () => {
 
   const handleContinueVisit = async (appointment: any) => {
     try {
-      const { data: visit, error } = await supabase
+      const { data: visits, error } = await supabase
         .from('visits')
         .select('id')
         .eq('appointment_id', appointment.id)
-        .single();
+        .eq('status', 'InProgress')
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       if (error) {
         console.error('[DoctorQueue] handleContinueVisit error:', error);
@@ -154,7 +156,7 @@ const DoctorQueue: React.FC = () => {
         return;
       }
 
-      if (visit) navigate(`/visit/${visit.id}`);
+      if (visits && visits.length > 0) navigate(`/visit/${visits[0].id}`);
     } catch (err: any) {
       console.error('[DoctorQueue] handleContinueVisit exception:', err);
       toast({ title: 'Error', description: err?.message ?? 'Failed to continue visit', variant: 'destructive' });

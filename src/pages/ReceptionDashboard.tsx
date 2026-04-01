@@ -280,7 +280,7 @@ const ReceptionDashboard: React.FC = () => {
                         <Pencil className="h-3 w-3 me-1" />
                         {t('common.edit')}
                       </Button>
-                      {apt.status === 'Booked' && (
+                      {(apt.status === 'Booked' || apt.status === 'Completed') && (
                         <Button size="sm" variant="outline" onClick={() => handleSendToDoctor(apt.id)}>
                           <Send className="h-3 w-3 me-1" />
                           {t('reception.sendToDoctor')}

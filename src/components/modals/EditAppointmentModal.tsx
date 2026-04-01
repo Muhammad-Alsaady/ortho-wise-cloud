@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, Save } from 'lucide-react';
+import { CalendarIcon, Plus, Save, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { checkAuthError } from '@/lib/api';
@@ -57,6 +57,8 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
   const [newTreatmentId, setNewTreatmentId] = useState('');
   const [newTreatmentPrice, setNewTreatmentPrice] = useState('');
   const [addingTreatment, setAddingTreatment] = useState(false);
+  const [editingDiscounts, setEditingDiscounts] = useState<Record<string, string>>({});
+  const [deletingPlan, setDeletingPlan] = useState(false);
 
   // Payments tab state
   const [payments, setPayments] = useState<any[]>([]);
@@ -136,13 +138,15 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
       const { data: visits, error: vErr } = await supabase
         .from('visits')
         .select('id')
-        .eq('appointment_id', appointment.id);
+        .eq('appointment_id', appointment.id)
+        .order('created_at', { ascending: false });
 
       if (vErr) { checkAuthError(vErr, 'EditAppt.visits'); return; }
 
       if (!visits || visits.length === 0) {
         setVisitId(null);
         setPlans([]);
+        setEditingDiscounts({});
         setPayments([]);
         return;
       }
@@ -157,6 +161,9 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
 
       if (plErr) checkAuthError(plErr, 'EditAppt.plans');
       setPlans(plansData || []);
+      const discounts: Record<string, string> = {};
+      (plansData || []).forEach(p => { discounts[p.id] = String(p.discount); });
+      setEditingDiscounts(discounts);
 
       if (plansData && plansData.length > 0) {
         const planIds = plansData.map(p => p.id);
@@ -254,6 +261,29 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
       fetchVisitData();
     }
     setSavingPayment(false);
+  };
+
+  const handleDeletePlan = async (planId: string) => {
+    setDeletingPlan(true);
+    const { error } = await supabase.from('treatment_plans').delete().eq('id', planId);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      fetchVisitData();
+    }
+    setDeletingPlan(false);
+  };
+
+  const handleDiscountBlur = async (planId: string) => {
+    const newVal = Number(editingDiscounts[planId]) || 0;
+    const plan = plans.find(p => p.id === planId);
+    if (!plan || Number(plan.discount) === newVal) return;
+    const { error } = await supabase.from('treatment_plans').update({ discount: newVal }).eq('id', planId);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      fetchVisitData();
+    }
   };
 
   const handleScheduleNext = async () => {
@@ -381,17 +411,39 @@ const EditAppointmentModal: React.FC<Props> = ({ open, appointment, onClose }) =
                       <TableHead>{t('doctor.price')}</TableHead>
                       <TableHead>{t('doctor.discount')}</TableHead>
                       <TableHead>{t('doctor.total')}</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {plans.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">{t('common.noData')}</TableCell></TableRow>
                     ) : plans.map(p => (
                       <TableRow key={p.id}>
                         <TableCell>{p.treatment?.name}</TableCell>
                         <TableCell>{Number(p.price)}</TableCell>
-                        <TableCell>{Number(p.discount)}</TableCell>
-                        <TableCell className="font-medium">{Number(p.price) - Number(p.discount)}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            className="w-20 h-8 text-sm"
+                            value={editingDiscounts[p.id] ?? String(p.discount)}
+                            onChange={e => setEditingDiscounts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                            onBlur={() => handleDiscountBlur(p.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {Number(p.price) - (Number(editingDiscounts[p.id] !== undefined ? editingDiscounts[p.id] : p.discount) || 0)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive h-8 w-8 p-0"
+                            disabled={deletingPlan}
+                            onClick={() => handleDeletePlan(p.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
